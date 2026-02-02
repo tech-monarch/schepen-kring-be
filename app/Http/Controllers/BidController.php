@@ -32,7 +32,7 @@ class BidController extends Controller
         }
 
         // 3. Ensure the new bid is higher than the current highest bid
-        if ($request->amount <= $yacht->current_bid) {
+        if ($yacht->current_bid !== null && $request->amount <= $yacht->current_bid) {
             return response()->json(['message' => 'Bid must be higher than the current bid.'], 422);
         }
 

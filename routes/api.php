@@ -7,6 +7,9 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BidController;
 
+// AUTH
+Route::post('/login', [UserController::class, 'login']);
+
 // 1. PUBLIC ROUTES (Anyone can view)
 Route::get('yachts', [YachtController::class, 'index']);
 Route::get('yachts/{id}', [YachtController::class, 'show']);
@@ -20,16 +23,25 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // EMPLOYEE / ADMIN ACTIONS (Fleet Management)
     Route::middleware('permission:manage yachts')->group(function () {
+        // Create Yacht
         Route::post('yachts', [YachtController::class, 'store']);
+        
+        // Update Yacht (Handles files via POST + _method=PUT)
+        Route::post('yachts/{id}', [YachtController::class, 'update']);
+        
+        // Bulk Gallery Upload
         Route::post('yachts/{id}/gallery', [YachtController::class, 'uploadGallery']);
-        Route::apiResource('yachts', YachtController::class)->except(['index', 'show']);
+        // Remove Yacht
+        Route::delete('yachts/{id}', [YachtController::class, 'destroy']);
+
+        Route::delete('/gallery/{id}', [YachtController::class, 'deleteGalleryImage']);
     });
 
-    // BID FINALIZATION (Only those with 'accept bids' permission)
-    Route::post('bids/{id}/accept', [BidController::class, 'acceptBid'])
-        ->middleware('permission:accept bids');
-    Route::post('bids/{id}/decline', [BidController::class, 'declineBid'])
-        ->middleware('permission:accept bids');
+    // BID FINALIZATION
+    Route::middleware('permission:accept bids')->group(function () {
+        Route::post('bids/{id}/accept', [BidController::class, 'acceptBid']);
+        Route::post('bids/{id}/decline', [BidController::class, 'declineBid']);
+    });
 
     // TASK MANAGEMENT
     Route::middleware('permission:manage tasks')->group(function () {
@@ -37,8 +49,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('tasks/{id}/status', [TaskController::class, 'updateStatus']);
     });
 
-    // USER & PERMISSION MANAGEMENT (SuperAdmin only)
+    // USER & PERMISSION MANAGEMENT (SuperAdmin)
     Route::middleware('permission:manage users')->group(function () {
+        Route::get('permissions', [UserController::class, 'getAllPermissions']);
+        Route::get('roles', [UserController::class, 'getAllRoles']);
         Route::apiResource('users', UserController::class);
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus']);
         Route::post('users/{user}/toggle-permission', [UserController::class, 'togglePermission']);

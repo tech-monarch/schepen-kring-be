@@ -7,17 +7,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Yacht extends Model {
+    // app/Models/Yacht.php
     protected $fillable = [
-        'vessel_id', 
-        'name', 
-        'status', 
-        'price', 
-        'current_bid', 
-        'year', 
-        'length', 
-        'main_image'
+        'name', 'price', 'status', 'year', 'length', 'make', 'model', 
+        'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
+        'water_capacity', 'cabins', 'heads', 'description', 'location', 
+        'main_image', 'vessel_id', 'allow_bidding'
     ];
-
     /**
      * Auto-generate a unique Vessel ID when creating a yacht.
      */

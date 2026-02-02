@@ -11,4 +11,12 @@ class YachtImage extends Model {
     public function yacht(): BelongsTo {
         return $this->belongsTo(Yacht::class);
     }
+
+    protected $appends = ['full_url'];
+
+public function getFullUrlAttribute()
+{
+    return asset('storage/' . $this->url);
+}
+
 }

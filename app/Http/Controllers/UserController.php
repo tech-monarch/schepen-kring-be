@@ -6,18 +6,28 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
     /**
      * Display the Global Directory of users.
      */
-    public function index()
-    {
-        $users = User::orderBy('name', 'asc')->get();
-        return response()->json($users);
-    }
+public function index()
+{
+    // Eager load permissions to avoid the 500/Slow loading errors [cite: 11]
+    $users = User::with('permissions')->orderBy('name', 'asc')->get();
 
+    // Use a collection map to ensure PHP treats each item as a User model
+    $users->transform(function ($user) {
+        /** @var \App\Models\User $user */
+        // We set 'permissions' to match the frontend 'permissions?: string[]' interface [cite: 6]
+        $user->permissions = $user->getPermissionNames(); 
+        return $user;
+    });
+
+    return response()->json($users);
+}
     /**
      * Register a new Staff Member or Customer.
      */
@@ -101,26 +111,71 @@ class UserController extends Controller
 
     // In app/Http/Controllers/UserController.php
 
-    public function togglePermission(Request $request, \App\Models\User $user)
-    {
-        // Ensure the admin is not taking away their own 'manage users' permission!
-        $request->validate([
-            'permission' => 'required|string|exists:permissions,name'
-        ]);
+public function togglePermission(Request $request, User $user)
+{
+    $request->validate([
+        'permission' => 'required|string|exists:permissions,name'
+    ]);
 
-        $permission = $request->permission;
+    $permission = $request->permission;
 
-        if ($user->hasPermissionTo($permission)) {
-            $user->revokePermissionTo($permission);
-            $status = 'revoked';
-        } else {
-            $user->givePermissionTo($permission);
-            $status = 'granted';
-        }
-
-        return response()->json([
-            'message' => "Permission '$permission' $status for {$user->name}",
-            'current_permissions' => $user->getPermissionNames()
-        ]);
+    // Use Spatie's built-in toggle logic
+    if ($user->hasPermissionTo($permission)) {
+        $user->revokePermissionTo($permission);
+        $status = 'detached';
+    } else {
+        $user->givePermissionTo($permission);
+        $status = 'attached';
     }
+
+    // Refresh to get the truth from the database
+    $user->refresh();
+
+    return response()->json([
+        'status' => $status,
+        'current_permissions' => $user->getPermissionNames(), // This is what the frontend UI needs
+        'message' => "Permission " . ($status === 'attached' ? 'granted' : 'revoked')
+    ]);
+}
+
+    public function login(Request $request)
+{
+    $credentials = $request->validate([
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
+
+    if (!Auth::attempt($credentials)) {
+        return response()->json([
+            'message' => 'Identity could not be verified. Check credentials.'
+        ], 401);
+    }
+
+    $user = Auth::user();
+    
+    // Create the Sanctum token
+    $token = $user->createToken('terminal_access_token')->plainTextToken;
+
+    return response()->json([
+        'token' => $token,
+        'id' => $user->id,
+        'name' => $user->name,
+        'email' => $user->email,
+        'userType' => $user->role, // Admin, Employee, or Customer
+        'status' => $user->status,
+        'access_level' => $user->access_level,
+        'permissions' => $user->getPermissionNames(), // Returns ['view yachts', 'manage tasks', etc.]
+    ]);
+}
+
+    // Add this to UserController.php
+public function getAllPermissions() {
+    // Returns all permissions registered in the system
+    return response()->json(\Spatie\Permission\Models\Permission::all());
+}
+
+public function getAllRoles() {
+    // Returns all roles (Admin, Employee, etc.)
+    return response()->json(\Spatie\Permission\Models\Role::all());
+}
 }
