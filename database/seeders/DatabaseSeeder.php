@@ -14,7 +14,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Create Dynamic Permissions
+        // 1. Create Dynamic Permissions (idempotent)
         $permissions = [
             'manage yachts',
             'view yachts',
@@ -25,66 +25,66 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate(
+                ['name' => $permission, 'guard_name' => 'web']
+            );
         }
 
-        // 2. Create Roles and Assign Permissions
-        $superAdmin = Role::create(['name' => 'SuperAdmin']);
-        $superAdmin->givePermissionTo(Permission::all());
+        // 2. Create Roles and Assign Permissions (safe)
+        $superAdmin = Role::firstOrCreate(['name' => 'SuperAdmin']);
+        $superAdmin->syncPermissions(Permission::all());
 
-        $employee = Role::create(['name' => 'Employee']);
-        $employee->givePermissionTo(['view yachts', 'manage tasks', 'accept bids']);
+        $employee = Role::firstOrCreate(['name' => 'Employee']);
+        $employee->syncPermissions(['view yachts', 'manage tasks', 'accept bids']);
 
-        $customer = Role::create(['name' => 'Customer']);
-        $customer->givePermissionTo(['view yachts', 'place bids']);
+        $customer = Role::firstOrCreate(['name' => 'Customer']);
+        $customer->syncPermissions(['view yachts', 'place bids']);
 
-        // 3. Create Sample Users
-        $adminUser = User::create([
-            'name' => 'Main Admin',
-            'email' => 'admin@maritime.com',
-            'password' => Hash::make('password123'),
-            'role' => 'Admin', // Legacy field for your UI
-            'status' => 'Active',
-            'access_level' => 'Full'
-        ]);
-        $adminUser->assignRole($superAdmin);
+        // 3. Create Sample Users (idempotent)
+        $adminUser = User::firstOrCreate(
+            ['email' => 'admin@maritime.com'],
+            [
+                'name' => 'Main Admin',
+                'password' => Hash::make('password123'),
+                'role' => 'Admin', // legacy field
+                'status' => 'Active',
+                'access_level' => 'Full'
+            ]
+        );
+        $adminUser->syncRoles($superAdmin);
 
-        $staffUser = User::create([
-            'name' => 'John Deckhand',
-            'email' => 'staff@maritime.com',
-            'password' => Hash::make('password123'),
-            'role' => 'Employee',
-            'status' => 'Active',
-            'access_level' => 'Limited'
-        ]);
-        $staffUser->assignRole($employee);
+        $staffUser = User::firstOrCreate(
+            ['email' => 'staff@maritime.com'],
+            [
+                'name' => 'John Deckhand',
+                'password' => Hash::make('password123'),
+                'role' => 'Employee',
+                'status' => 'Active',
+                'access_level' => 'Limited'
+            ]
+        );
+        $staffUser->syncRoles($employee);
 
-        $clientUser = User::create([
-            'name' => 'Vince Millionaire',
-            'email' => 'client@maritime.com',
-            'password' => Hash::make('password123'),
-            'role' => 'Customer',
-            'status' => 'Active',
-            'access_level' => 'None'
-        ]);
-        $clientUser->assignRole($customer);
+        $clientUser = User::firstOrCreate(
+            ['email' => 'client@maritime.com'],
+            [
+                'name' => 'Vince Millionaire',
+                'password' => Hash::make('password123'),
+                'role' => 'Customer',
+                'status' => 'Active',
+                'access_level' => 'None'
+            ]
+        );
+        $clientUser->syncRoles($customer);
 
-        // 4. Create a Sample Yacht & Bid
-        $yacht = Yacht::create([
-            'vessel_id' => 'Y-772',
-            'name' => 'M/Y Sovereign',
-            'status' => 'For Bid',
-            'price' => 12500000.00,
-            'current_bid' => 13000000.00,
-            'year' => '2024',
-            'length' => '55m'
-        ]);
-
-        Bid::create([
-            'yacht_id' => $yacht->id,
-            'user_id' => $clientUser->id,
-            'amount' => 13000000.00,
-            'status' => 'active'
-        ]);
-    }
-}
+        // 4. Create a Sample Yacht & Bid safely
+        $yacht = Yacht::firstOrCreate(
+            ['vessel_id' => 'Y-772'],
+            [
+                'name' => 'M/Y Sovereign',
+                'status' => 'For Bid',
+                'price' => 12500000.00,
+                'current_bid' => 13000000.00,
+                'year' => '2024',
+                'length' => '55m'
+            ]
