@@ -88,3 +88,14 @@ class DatabaseSeeder extends Seeder
                 'year' => '2024',
                 'length' => '55m'
             ]
+        );
+
+        Bid::firstOrCreate(
+            ['yacht_id' => $yacht->id, 'user_id' => $clientUser->id],
+            [
+                'amount' => 13000000.00,
+                'status' => 'active'
+            ]
+        );
+    }
+}
