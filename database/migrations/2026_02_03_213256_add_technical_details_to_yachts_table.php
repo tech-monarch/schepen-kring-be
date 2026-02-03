@@ -23,7 +23,7 @@ public function up()
         $table->string('hull_color')->nullable();
         $table->string('deck_color')->nullable();
         $table->string('clearance')->nullable(); // Doorvaarthoogte
-        $table->string('draft')->nullable(); // Diepgang
+        // $table->string('draft')->nullable(); // Diepgang
         $table->string('displacement')->nullable(); // Waterverplaatsing
         $table->string('steering')->nullable();
 
