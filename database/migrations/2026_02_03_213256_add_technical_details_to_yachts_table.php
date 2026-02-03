@@ -11,45 +11,102 @@ return new class extends Migration
      */
 public function up()
 {
-    Schema::table('yachts', function (Blueprint $table) {
-        // General Specs
+Schema::table('yachts', function (Blueprint $table) {
+    // General Specs
+    if (!Schema::hasColumn('yachts', 'brand_model')) {
         $table->string('brand_model')->nullable();
-        $table->string('vat_status')->nullable(); // e.g., "VAT Included"
+    }"\
+    if (!Schema::hasColumn('yachts', 'vat_status')) {
+        $table->string('vat_status')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'reference_code')) {
         $table->string('reference_code')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'construction_material')) {
         $table->string('construction_material')->nullable();
-        $table->string('dimensions')->nullable(); // L x B x D
+    }
+    if (!Schema::hasColumn('yachts', 'dimensions')) {
+        $table->string('dimensions')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'berths')) {
         $table->string('berths')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'hull_shape')) {
         $table->string('hull_shape')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'hull_color')) {
         $table->string('hull_color')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'deck_color')) {
         $table->string('deck_color')->nullable();
-        $table->string('clearance')->nullable(); // Doorvaarthoogte
-        // $table->string('draft')->nullable(); // Diepgang
-        $table->string('displacement')->nullable(); // Waterverplaatsing
+    }
+    if (!Schema::hasColumn('yachts', 'clearance')) {
+        $table->string('clearance')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'displacement')) {
+        $table->string('displacement')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'steering')) {
         $table->string('steering')->nullable();
+    }
 
-        // Engine & Electricity
+    // Engine & Electricity
+    if (!Schema::hasColumn('yachts', 'engine_brand')) {
         $table->string('engine_brand')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'engine_model')) {
         $table->string('engine_model')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'engine_power')) {
         $table->string('engine_power')->nullable();
-        $table->string('engine_type')->nullable(); // Inboard/Outboard
+    }
+    if (!Schema::hasColumn('yachts', 'engine_type')) {
+        $table->string('engine_type')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'fuel_type')) {
         $table->string('fuel_type')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'engine_hours')) {
         $table->string('engine_hours')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'max_speed')) {
         $table->string('max_speed')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'fuel_consumption')) {
         $table->string('fuel_consumption')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'voltage')) {
         $table->string('voltage')->nullable();
+    }
 
-        // Accommodation
+    // Accommodation
+    if (!Schema::hasColumn('yachts', 'cabins')) {
         $table->string('cabins')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'interior_type')) {
         $table->string('interior_type')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'water_tank')) {
         $table->string('water_tank')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'water_system')) {
         $table->string('water_system')->nullable();
+    }
 
-        // Equipment & Safety
-        $table->text('navigation_electronics')->nullable(); // Store as JSON or Text
+    // Equipment & Safety
+    if (!Schema::hasColumn('yachts', 'navigation_electronics')) {
+        $table->text('navigation_electronics')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'exterior_equipment')) {
         $table->text('exterior_equipment')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'trailer_included')) {
         $table->boolean('trailer_included')->default(false);
+    }
+    if (!Schema::hasColumn('yachts', 'safety_equipment')) {
         $table->string('safety_equipment')->nullable();
-    });
+    }
+});
 }
 
     /**
