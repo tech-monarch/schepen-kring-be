@@ -180,34 +180,40 @@ public function getAllRoles() {
 }
 
 
-public function register(Request $request) {
-    $request->validate([
+// app/Http/Controllers/UserController.php
+
+public function register(Request $request) 
+{
+    $validated = $request->validate([
         'name' => 'required|string|max:255',
-        'email' => 'required|string|email|unique:users',
-        'password' => 'required|string|min:8',
-        'accept_terms' => 'accepted'
+        'email' => 'required|email|unique:users,email',
+        'password' => 'required|min:8',
+        'accept_terms' => 'accepted' 
     ]);
 
     $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-        'role' => 'Customer', // Default role
-        'userType' => 'Customer',
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+        'password' => Hash::make($validated['password']),
+        'role' => 'Customer',      // Auto-assigning as requested [cite: 167]
         'status' => 'Active',
+        'access_level' => 'None',
         'registration_ip' => $request->ip(),
         'user_agent' => $request->header('User-Agent'),
         'terms_accepted_at' => now(),
     ]);
 
-    $token = $user->createToken('auth_token')->plainTextToken;
+    // Ensure they have the Spatie role assigned if you are using that package [cite: 80]
+    $user->assignRole('Customer');
+
+    $token = $user->createToken('terminal_access_token')->plainTextToken;
 
     return response()->json([
         'token' => $token,
         'id' => $user->id,
         'name' => $user->name,
-        'userType' => $user->userType,
-        'email' => $user->email
-    ]);
+        'email' => $user->email,
+        'userType' => $user->role, // Returns "Customer" instead of null 
+    ], 201);
 }
 }
