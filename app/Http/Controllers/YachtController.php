@@ -24,68 +24,74 @@ class YachtController extends Controller {
         return $this->saveYacht($request, $id);
     }
 
-    protected function saveYacht(Request $request, $id = null): JsonResponse 
-    {
-        try {
-            $isUpdate = $id !== null;
-            $yacht = $isUpdate ? Yacht::findOrFail($id) : new Yacht();
+protected function saveYacht(Request $request, $id = null): JsonResponse 
+{
+    try {
+        $isUpdate = $id !== null;
+        $yacht = $isUpdate ? Yacht::findOrFail($id) : new Yacht();
 
-            // 1. Validation
-            $request->validate([
-                'name'  => $isUpdate ? 'sometimes|required' : 'required',
-                'price' => $isUpdate ? 'sometimes|required|numeric' : 'required|numeric',
-            ]);
+        // 1. Validation - Add the new numeric/string checks
+        $request->validate([
+            'name'  => $isUpdate ? 'sometimes|required' : 'required',
+            'price' => $isUpdate ? 'sometimes|required|numeric' : 'required|numeric',
+            'year'  => 'sometimes|nullable|integer',
+        ]);
 
-            // 2. Map Core Fields
-            $fields = [
-                'name', 'price', 'status', 'year', 'length', 'make', 'model', 
-                'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
-                'water_capacity', 'cabins', 'heads', 'description', 'location'
-            ];
+        // 2. Map ALL fields (including the new ones from the Dutch site)
+        $fields = [
+            'name', 'price', 'status', 'year', 'length', 'make', 'model', 
+            'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
+            'water_capacity', 'cabins', 'heads', 'description', 'location',
+            // --- NEW TECHNICAL FIELDS ---
+            'vat_status', 'reference_code', 'construction_material', 'dimensions',
+            'berths', 'hull_shape', 'hull_color', 'deck_color', 'clearance',
+            'displacement', 'steering', 'engine_brand', 'engine_model',
+            'engine_power', 'engine_hours', 'max_speed', 'fuel_consumption',
+            'voltage', 'interior_type', 'water_tank', 'water_system',
+            'navigation_electronics', 'exterior_equipment', 'safety_equipment'
+        ];
 
-            foreach ($fields as $field) {
-                if ($request->has($field)) {
-                    if (in_array($field, ['cabins', 'heads', 'price']) && $request->input($field) === "") {
-                        $yacht->{$field} = null;
-                    } else {
-                        $yacht->{$field} = $request->input($field);
-                    }
+        foreach ($fields as $field) {
+            if ($request->has($field)) {
+                // Handle empty strings for numeric/nullable fields [cite: 34]
+                if ($request->input($field) === "") {
+                    $yacht->{$field} = null;
+                } else {
+                    $yacht->{$field} = $request->input($field);
                 }
             }
-
-            // 3. Handle Boolean Bidding
-            if ($request->has('allow_bidding')) {
-                $yacht->allow_bidding = filter_var($request->allow_bidding, FILTER_VALIDATE_BOOLEAN);
-            }
-
-            // 4. Handle Main Image
-            if ($request->hasFile('main_image')) {
-                $request->validate(['main_image' => 'image|max:10240']);
-                if ($isUpdate && $yacht->main_image) {
-                    Storage::disk('public')->delete($yacht->main_image);
-                }
-                $yacht->main_image = $request->file('main_image')->store('yachts/main', 'public');
-            }
-
-            // 5. Identity Generation
-            if (!$isUpdate && !isset($yacht->vessel_id)) {
-                $yacht->vessel_id = 'SK-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
-            }
-
-            $yacht->save();
-
-            // Load images before returning so the UI updates immediately
-            $yacht->load('images');
-
-            return response()->json($yacht, $isUpdate ? 200 : 201);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Internal Registry Error',
-                'debug'   => $e->getMessage()
-            ], 500);
         }
+
+        // 3. Handle Boolean Bidding [cite: 35]
+        if ($request->has('allow_bidding')) {
+            $yacht->allow_bidding = filter_var($request->allow_bidding, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if ($request->has('trailer_included')) {
+            $yacht->trailer_included = filter_var($request->trailer_included, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        // 4. Handle Main Image [cite: 36, 37]
+        if ($request->hasFile('main_image')) {
+            if ($isUpdate && $yacht->main_image) {
+                Storage::disk('public')->delete($yacht->main_image);
+            }
+            $yacht->main_image = $request->file('main_image')->store('yachts/main', 'public');
+        }
+
+        // 5. Identity Generation [cite: 37, 38]
+        if (!$isUpdate && !isset($yacht->vessel_id)) {
+            $yacht->vessel_id = 'SK-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
+        }
+
+        $yacht->save();
+        $yacht->load('images'); 
+        return response()->json($yacht, $isUpdate ? 200 : 201);
+
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Internal Registry Error', 'debug' => $e->getMessage()], 500);
     }
+}
 
     public function uploadGallery(Request $request, $id): JsonResponse {
         $yacht = Yacht::findOrFail($id);
