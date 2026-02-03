@@ -25,7 +25,7 @@ class User extends Authenticatable
         'password',
         'role',
         'status',
-        'access_level',
+        'access_level', 'registration_ip', 'user_agent', 'terms_accepted_at'
     ];
 
     public function tasks() {

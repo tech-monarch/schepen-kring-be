@@ -9,6 +9,7 @@ use App\Http\Controllers\BidController;
 
 // AUTH
 Route::post('/login', [UserController::class, 'login']);
+Route::post('/register', [UserController::class, 'register']);
 
 // 1. PUBLIC ROUTES (Anyone can view)
 Route::get('yachts', [YachtController::class, 'index']);

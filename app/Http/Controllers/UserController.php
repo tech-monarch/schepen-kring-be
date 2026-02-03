@@ -178,4 +178,36 @@ public function getAllRoles() {
     // Returns all roles (Admin, Employee, etc.)
     return response()->json(\Spatie\Permission\Models\Role::all());
 }
+
+
+public function register(Request $request) {
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|unique:users',
+        'password' => 'required|string|min:8',
+        'accept_terms' => 'accepted'
+    ]);
+
+    $user = User::create([
+        'name' => $request->name,
+        'email' => $request->email,
+        'password' => Hash::make($request->password),
+        'role' => 'Customer', // Default role
+        'userType' => 'Customer',
+        'status' => 'Active',
+        'registration_ip' => $request->ip(),
+        'user_agent' => $request->header('User-Agent'),
+        'terms_accepted_at' => now(),
+    ]);
+
+    $token = $user->createToken('auth_token')->plainTextToken;
+
+    return response()->json([
+        'token' => $token,
+        'id' => $user->id,
+        'name' => $user->name,
+        'userType' => $user->userType,
+        'email' => $user->email
+    ]);
+}
 }
