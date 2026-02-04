@@ -20,8 +20,9 @@ Route::get('bids/{id}/history', [BidController::class, 'history']);
 Route::middleware('auth:sanctum')->group(function () {
     
     // CUSTOMER ACTIONS
-    Route::post('bids/place', [BidController::class, 'placeBid'])
-        ->middleware('permission:place bids');
+    // Route::post('bids/place', [BidController::class, 'placeBid'])
+    //     ->middleware('permission:place bids');
+    Route::post('bids/place', [BidController::class, 'placeBid']);
 
     // EMPLOYEE / ADMIN ACTIONS (Fleet Management)
     Route::middleware('permission:manage yachts')->group(function () {
