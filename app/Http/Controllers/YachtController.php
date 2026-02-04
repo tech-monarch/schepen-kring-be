@@ -148,84 +148,70 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
         return response()->json(['message' => 'Vessel removed from fleet.']);
     }
 public function classifyImages(Request $request): JsonResponse
-{
-    $request->validate([
-        'images.*' => 'required|image|max:12288', // Increased to 12MB for Pro high-res
-    ]);
+    {
+        $request->validate([
+            'images.*' => 'required|image|max:12288',
+        ]);
 
-    // Use Gemini 1.5 Pro for maximum reasoning capability
-    $apiKey = "AIzaSyDwuu7UILyKXZNyB2KclKyGpEYiBNUNhc0";
-    $model = "gemini-2.5-pro"; 
-    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+        $apiKey = "AIzaSyDwuu7UILyKXZNyB2KclKyGpEYiBNUNhc0";
+        $model = "gemini-2.5-pro"; 
+        $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
-    $results = [];
+        $results = [];
 
-    foreach ($request->file('images') as $image) {
-        $imageData = base64_encode(file_get_contents($image->getRealPath()));
-        $mimeType = $image->getMimeType();
+        foreach ($request->file('images') as $image) {
+            $imageData = base64_encode(file_get_contents($image->getRealPath()));
+            $mimeType = $image->getMimeType();
 
-        try {
-            // Enhanced prompt for the 'Pro' model
-            $prompt = "Act as a luxury yacht surveyor. Analyze this high-resolution image and classify it into exactly one of these four categories: 'Exterior', 'Interior', 'Engine Room', or 'Bridge'. 
-            - Exterior: Outside hull, deck, flybridge (outdoor), or aerial views.
-            - Interior: Saloon, cabins, galley, or bathrooms.
-            - Engine Room: Engines, generators, and technical machinery.
-            - Bridge: Helm station, navigation equipment, and captain's chair.
-            Return ONLY the category name as a single word.";
+            try {
+                $prompt = "Act as a luxury yacht surveyor. Analyze this high-resolution image and classify it into exactly one of these four categories: 'Exterior', 'Interior', 'Engine Room', or 'Bridge'. Return ONLY the category name as a single word.";
 
-            $response = Http::timeout(30)->post($endpoint, [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $prompt],
-                            [
-                                'inline_data' => [
-                                    'mime_type' => $mimeType,
-                                    'data' => $imageData
+                $response = Http::timeout(30)->post($endpoint, [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                ['text' => $prompt],
+                                [
+                                    'inline_data' => [
+                                        'mime_type' => $mimeType,
+                                        'data' => $imageData
+                                    ]
                                 ]
                             ]
                         ]
                     ]
-                ]
-            ]);
+                ]);
 
-            if ($response->failed()) {
-                \Log::error("Gemini Pro API Error: " . $response->body());
-                throw new \Exception("API Error: " . $response->status());
+                if ($response->failed()) {
+                    \Log::error("Gemini Pro API Error: " . $response->body());
+                    throw new \Exception("API Error: " . $response->status());
+                }
+
+                $aiResponse = $response->json();
+                $category = $aiResponse['candidates'][0]['content']['parts'][0]['text'] ?? 'Exterior';
+                $category = trim(preg_replace('/[^A-Za-z ]/', '', $category));
+
+                $valid = ['Exterior', 'Interior', 'Engine Room', 'Bridge'];
+                $finalCategory = in_array($category, $valid) ? $category : 'Exterior';
+
+                $results[] = [
+                    'category' => $finalCategory,
+                    'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
+                    'originalName' => $image->getClientOriginalName()
+                ];
+
+            } catch (\Exception $e) {
+                \Log::error("AI Logic Failed: " . $e->getMessage());
+                $results[] = [
+                    'category' => 'Exterior',
+                    'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
+                    'originalName' => $image->getClientOriginalName(),
+                    'error' => true
+                ];
             }
-
-            $aiResponse = $response->json();
-            
-            // Extract text with fallback
-            $category = $aiResponse['candidates'][0]['content']['parts'][0]['text'] ?? 'Exterior';
-            
-            // Clean the output (remove quotes, dots, or extra spaces)
-            $category = trim(preg_replace('/[^A-Za-z ]/', '', $category));
-
-            // Validate against your allowed categories
-            $valid = ['Exterior', 'Interior', 'Engine Room', 'Bridge'];
-            $finalCategory = in_array($category, $valid) ? $category : 'Exterior';
-
-            $results[] = [
-                'category' => $finalCategory,
-                'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
-                'originalName' => $image->getClientOriginalName()
-            ];
-
-        } catch (\Exception $e) {
-            \Log::error("AI Logic Failed: " . $e->getMessage());
-            
-            // Fallback so frontend still gets the image
-            $results[] = [
-                'category' => 'Exterior',
-                'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
-                'originalName' => $image->getClientOriginalName(),
-                'error' => true
-            ];
         }
-    }
 
-    return response()->json($results);
-}
+        return response()->json($results);
+    }
 
 }
