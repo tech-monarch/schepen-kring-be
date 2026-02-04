@@ -56,6 +56,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('yachts/{id}', [YachtController::class, 'destroy']);
 
         Route::delete('/gallery/{id}', [YachtController::class, 'deleteGalleryImage']);
+
+        Route::post('yachts/ai-classify', [YachtController::class, 'classifyImages']);
     });
 
     // BID FINALIZATION
