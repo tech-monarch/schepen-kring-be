@@ -15,7 +15,7 @@ public function placeBid(Request $request)
 {
     $request->validate([
         'yacht_id' => 'required|exists:yachts,id',
-        'amount' => 'required|numeric|min:1',
+        'amount'   => 'required|numeric|min:1',
     ]);
 
     $yacht = Yacht::findOrFail($request->yacht_id);
@@ -25,15 +25,17 @@ public function placeBid(Request $request)
         return response()->json(['message' => 'Bidding is closed. Vessel is sold.'], 403);
     }
 
-    // 2. Ensure the yacht is actually set to "For Bid"
-    // Note: If you want 'For Sale' yachts to also accept bids, remove this check.
-    if ($yacht->status !== 'For Bid') {
-        return response()->json(['message' => 'This vessel is not currently open for bidding.'], 403);
+    // 2. Allow bidding on both "For Bid" and "For Sale" items
+    // This fixes your 403 error if the status was just "For Sale"
+    if (!in_array($yacht->status, ['For Bid', 'For Sale'])) {
+        return response()->json(['message' => 'This vessel is not currently open for offers.'], 403);
     }
 
     // 3. Ensure the new bid is higher than the current highest bid
     if ($yacht->current_bid !== null && $request->amount <= $yacht->current_bid) {
-        return response()->json(['message' => 'Bid must be higher than the current bid €' . number_format($yacht->current_bid)], 422);
+        return response()->json([
+            'message' => 'Bid must be higher than the current offer: €' . number_format($yacht->current_bid)
+        ], 422);
     }
 
     return DB::transaction(function () use ($request, $yacht) {
@@ -45,17 +47,21 @@ public function placeBid(Request $request)
         // 5. Create the new bid using the authenticated user
         $bid = Bid::create([
             'yacht_id' => $yacht->id,
-            'user_id' => auth()->id(), // Strictly use authenticated ID
-            'amount' => $request->amount,
-            'status' => 'active'
+            'user_id'  => auth()->id(), // Strictly use authenticated ID
+            'amount'   => $request->amount,
+            'status'   => 'active'
         ]);
 
-        // 6. Update the main Yacht record
-        $yacht->update(['current_bid' => $request->amount]);
+        // 6. Update the main Yacht record with the new high bid
+        // If status was "For Sale", we can optionally switch it to "For Bid" here if you want
+        $yacht->update([
+            'current_bid' => $request->amount,
+            'status'      => 'For Bid' // Auto-switch status to indicate active bidding
+        ]);
 
         return response()->json([
             'message' => 'Bid placed successfully.',
-            'bid' => $bid->load('user') // Load user so frontend updates immediately
+            'bid'     => $bid->load('user') // Load user so frontend updates immediately
         ], 201);
     });
 }
