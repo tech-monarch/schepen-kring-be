@@ -147,65 +147,85 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
         $yacht->delete();
         return response()->json(['message' => 'Vessel removed from fleet.']);
     }
-    public function classifyImages(Request $request): JsonResponse
-    {
-        $request->validate([
-            'images.*' => 'required|image|max:10240', // Max 10MB per image
-        ]);
+public function classifyImages(Request $request): JsonResponse
+{
+    $request->validate([
+        'images.*' => 'required|image|max:12288', // Increased to 12MB for Pro high-res
+    ]);
 
-        $apiKey = "AIzaSyBcM6a6-Dyh-HQjybNcqB0NmS1MResz-KM";
-        $model = "gemini-2.5-flash-lite"; 
-        $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+    // Use Gemini 1.5 Pro for maximum reasoning capability
+    $apiKey = "AIzaSyBcM6a6-Dyh-HQjybNcqB0NmS1MResz-KM";
+    $model = "gemini-2.5-pro"; 
+    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
-        $results = [];
+    $results = [];
 
-        foreach ($request->file('images') as $image) {
-            $imageData = base64_encode(file_get_contents($image->getRealPath()));
-            $mimeType = $image->getMimeType();
+    foreach ($request->file('images') as $image) {
+        $imageData = base64_encode(file_get_contents($image->getRealPath()));
+        $mimeType = $image->getMimeType();
 
-            try {
-                $response = Http::post($endpoint, [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                ['text' => "Act as a luxury yacht expert. Analyze this image and categorize it into exactly ONE of these categories: 'Exterior', 'Interior', 'Engine Room', or 'Bridge'. Return ONLY the category name as a single word."],
-                                [
-                                    'inline_data' => [
-                                        'mime_type' => $mimeType,
-                                        'data' => $imageData
-                                    ]
+        try {
+            // Enhanced prompt for the 'Pro' model
+            $prompt = "Act as a luxury yacht surveyor. Analyze this high-resolution image and classify it into exactly one of these four categories: 'Exterior', 'Interior', 'Engine Room', or 'Bridge'. 
+            - Exterior: Outside hull, deck, flybridge (outdoor), or aerial views.
+            - Interior: Saloon, cabins, galley, or bathrooms.
+            - Engine Room: Engines, generators, and technical machinery.
+            - Bridge: Helm station, navigation equipment, and captain's chair.
+            Return ONLY the category name as a single word.";
+
+            $response = Http::timeout(30)->post($endpoint, [
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $prompt],
+                            [
+                                'inline_data' => [
+                                    'mime_type' => $mimeType,
+                                    'data' => $imageData
                                 ]
                             ]
                         ]
                     ]
-                ]);
+                ]
+            ]);
 
-                $aiResponse = $response->json();
-                // Extract the text from Gemini response structure
-                $category = $aiResponse['candidates'][0]['content']['parts'][0]['text'] ?? 'Exterior';
-                $category = trim(str_replace(['"', "\n", "\r"], '', $category));
-
-                // Basic validation of AI output
-                $validCategories = ['Exterior', 'Interior', 'Engine Room', 'Bridge'];
-                $finalCategory = in_array($category, $validCategories) ? $category : 'Exterior';
-
-                $results[] = [
-                    'category' => $finalCategory,
-                    'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
-                    'originalName' => $image->getClientOriginalName()
-                ];
-
-            } catch (\Exception $e) {
-                // If AI fails, default to Exterior
-                $results[] = [
-                    'category' => 'Exterior',
-                    'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
-                    'error' => 'AI analysis failed'
-                ];
+            if ($response->failed()) {
+                \Log::error("Gemini Pro API Error: " . $response->body());
+                throw new \Exception("API Error: " . $response->status());
             }
-        }
 
-        return response()->json($results);
+            $aiResponse = $response->json();
+            
+            // Extract text with fallback
+            $category = $aiResponse['candidates'][0]['content']['parts'][0]['text'] ?? 'Exterior';
+            
+            // Clean the output (remove quotes, dots, or extra spaces)
+            $category = trim(preg_replace('/[^A-Za-z ]/', '', $category));
+
+            // Validate against your allowed categories
+            $valid = ['Exterior', 'Interior', 'Engine Room', 'Bridge'];
+            $finalCategory = in_array($category, $valid) ? $category : 'Exterior';
+
+            $results[] = [
+                'category' => $finalCategory,
+                'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
+                'originalName' => $image->getClientOriginalName()
+            ];
+
+        } catch (\Exception $e) {
+            \Log::error("AI Logic Failed: " . $e->getMessage());
+            
+            // Fallback so frontend still gets the image
+            $results[] = [
+                'category' => 'Exterior',
+                'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
+                'originalName' => $image->getClientOriginalName(),
+                'error' => true
+            ];
+        }
     }
+
+    return response()->json($results);
+}
 
 }
