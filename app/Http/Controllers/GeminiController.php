@@ -4,20 +4,21 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Yacht;
+use App\Models\FAQ; // This is the model causing the crash
 use App\Models\ChatMessage;
-// Use safe checks for models that might not exist in your current migration list
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class GeminiController extends Controller
 {
     public function chat(Request $request)
     {
-        // 1. VOICE CONFIGURATION
+        // --- START VOICE INTEGRATION ---
         $user = auth()->user();
         $voiceId = $user ? ($user->ai_voice_id ?? 'voice_4') : 'voice_4';
-        
+
         $voiceProfiles = [
             'voice_1' => "feminine, warm, and motherly. Use soft emojis 🌸.",
             'voice_2' => "masculine, professional, and direct. No emojis.",
@@ -25,88 +26,100 @@ class GeminiController extends Controller
             'voice_4' => "calm, highly sophisticated, and luxury-focused. Use formal language.",
             'voice_5' => "funny, casual, and a bit cheeky with maritime jokes ⚓.",
         ];
+
         $chosenProfile = $voiceProfiles[$voiceId] ?? $voiceProfiles['voice_4'];
 
-        // 2. FETCH DATA WITH "SILENT" FAILURES (Prevents 500 errors if tables are missing)
-        $yachtContext = "NO_LOCAL_DATA";
-        $faqContext = "NO_LOCAL_DATA";
+        // 1. API CONFIGURATION
+        $apiKey = "AIzaSyBcM6a6-Dyh-HQjybNcqB0NmS1MResz-KM";
+        $model = "gemini-2.5-flash-lite"; 
 
+        // 2. FETCH KNOWLEDGE BASE (With Crash Protection)
+        $yachtData = "No local yacht data available.";
+        $faqData = "No local FAQ data available.";
+
+        // Protect against missing Yachts table
         try {
-            // Check if yachts table exists before querying [cite: 176]
-            $yachts = Yacht::where('status', '!=', 'Draft')->get();
-            if ($yachts->isNotEmpty()) {
-                $yachtContext = $yachts->map(fn($y) => "Vessel: {$y->name} | Price: €{$y->price} | Make: {$y->make}")->join("\n");
-            }
+            $yachtData = Yacht::where('status', '!=', 'Draft')->get()->map(function($y) {
+                return "Vessel: {$y->name} | Price: €{$y->price} | Make: {$y->make}";
+            })->join("\n") ?: "No yachts currently listed.";
         } catch (\Exception $e) {
-            Log::warning("Yachts table query failed: " . $e->getMessage());
+            Log::warning("Yacht table not found, skipping local fleet data.");
         }
 
+        // Protect against missing FAQs table (The fix for your 500 error)
         try {
-            // Use DB check for FAQ since the model/migration wasn't in your backend file [cite: 176, 192]
-            if (Schema::hasTable('faqs')) {
-                $faqContext = DB::table('faqs')->get()->map(fn($f) => "Q: {$f->question} A: {$f->answer}")->join("\n");
-            }
+            $faqData = FAQ::all()->map(function($f) {
+                return "Q: {$f->question}\nA: {$f->answer}";
+            })->join("\n\n") ?: "No local FAQs found.";
         } catch (\Exception $e) {
-            Log::warning("FAQ table query failed.");
+            Log::warning("FAQ table not found, relying on trained data.");
         }
 
-        // 3. SYSTEM PROMPT WITH FALLBACK INSTRUCTION
+        // 3. SYSTEM CONTEXT
         $systemContext = "
-            ROLE: You are the 'Kring Schepen Yachts' AI Concierge.
-            TONE: $chosenProfile
-            
-            KNOWLEDGE BASE:
-            FLEET: $yachtContext
-            FAQS: $faqContext
+        ROLE: You are the 'Kring Schepen Yachts' AI Concierge. You are a premium maritime consultant.
+        TONE & PERSONALITY: You must sound $chosenProfile
 
-            INSTRUCTION: 
-            1. If FLEET or FAQS are 'NO_LOCAL_DATA', do NOT tell the user. 
-            2. Instead, use your own internal 'trained data' regarding luxury yachts, maritime brokerage, and general vessel maintenance to provide a helpful, expert response.
-            3. Always maintain the Kring Schepen brand: 'Sailing into Excellence'.
+        IMPORTANT: If local fleet or FAQ data is empty, do NOT mention an error. 
+        Instead, use your internal trained knowledge to provide expert advice on luxury yachts, 
+        boat buying, and the yachting lifestyle.
+
+        LOCAL DATA (Absolute Truth if provided):
+        ---
+        CURRENT FLEET:
+        $yachtData
+        ---
+        FAQS:
+        $faqData
         ";
 
-        // 4. PREPARE API CALL
-        $apiKey = "AIzaSyBcM6a6-Dyh-HQjybNcqB0NmS1MResz-KM";
-        $model = "gemini-2.5-flash-lite"; // Your specified model
+        // 4. PREPARE DATA FROM FRONTEND
+        $userMessage = $request->input('message');
+        $sessionId = $request->input('session_id', 'anon-' . uniqid());
+        $clientHistory = json_decode($request->input('history', '[]'), true);
+
+        // 5. FORMAT CONTENTS
+        $formattedContents = [];
+        foreach ($clientHistory as $msg) {
+            $role = ($msg['role'] === 'user') ? 'user' : 'model';
+            $formattedContents[] = ["role" => $role, "parts" => [["text" => $msg['content']]]];
+        }
+        $formattedContents[] = ["role" => "user", "parts" => [["text" => $userMessage]]];
+
+        // 6. CALL API
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
 
         try {
             $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}", [
+                ->post($url, [
                     "system_instruction" => ["parts" => [["text" => $systemContext]]],
-                    "contents" => [
-                        ["role" => "user", "parts" => [["text" => $request->input('message')]]]
-                    ],
-                    "generationConfig" => [
-                        "temperature" => 0.7,
-                        "maxOutputTokens" => 500,
-                    ]
+                    "contents" => $formattedContents,
+                    "generationConfig" => ["temperature" => 0.7, "maxOutputTokens" => 800]
                 ]);
 
             if ($response->failed()) {
-                return response()->json(['reply' => "I apologize, my maritime uplink is momentarily disconnected. How else can I assist?"], 200);
+                Log::error("Gemini Error: " . $response->body());
+                return response()->json(['reply' => "I'm having trouble connecting to my maritime intelligence. Please try again."]);
             }
 
-            $aiResponseText = $response->json('candidates.0.content.parts.0.text');
+            $aiResponseText = $response->json('candidates.0.content.parts.0.text') ?? "I am here to assist with your yachting needs.";
 
-            // 5. SAFE HISTORY LOGGING
-            // Wrapped in try-catch so if ChatMessage migration is missing, it doesn't crash [cite: 147]
+            // 7. SAVE HISTORY (Optional: Wrap in try-catch too)
             try {
-                // Ensure the session ID is passed from Faq.tsx [cite: 34]
-                DB::table('chat_messages')->insert([
-                    'session_id' => $request->input('session_id', 'anon'),
-                    'role' => 'assistant',
-                    'content' => $aiResponseText,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                ChatMessage::create([
+                    'session_id' => $sessionId,
+                    'role'       => 'assistant',
+                    'content'    => $aiResponseText,
                 ]);
-            } catch (\Exception $e) {
-                Log::error("Could not save chat message: " . $e->getMessage());
-            }
+            } catch (\Exception $e) {}
 
-            return response()->json(['reply' => $aiResponseText]);
+            return response()->json([
+                'reply' => $aiResponseText,
+                'voice_meta' => ['voice_id' => $voiceId, 'profile' => $chosenProfile]
+            ]);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Concierge System Error', 'details' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Concierge Offline: ' . $e->getMessage()], 500);
         }
     }
 }
