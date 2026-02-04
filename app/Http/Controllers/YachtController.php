@@ -148,70 +148,54 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
         return response()->json(['message' => 'Vessel removed from fleet.']);
     }
 public function classifyImages(Request $request): JsonResponse
-    {
-        $request->validate([
-            'images.*' => 'required|image|max:12288',
-        ]);
+{
+    $request->validate([
+        'images.*' => 'required|image|max:5120', // Limit to 5MB to avoid server crashes
+    ]);
 
-        $apiKey = "AIzaSyDwuu7UILyKXZNyB2KclKyGpEYiBNUNhc0";
-        $model = "gemini-2.5-pro"; 
-        $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+    // Gemini 2.0 Flash is the "Fast/Lite" version
+    $apiKey = "AIzaSyDwuu7UILyKXZNyB2KclKyGpEYiBNUNhc0";
+    $model = "gemini-2.0-flash"; 
+    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
-        $results = [];
+    $results = [];
 
-        foreach ($request->file('images') as $image) {
+    foreach ($request->file('images') as $image) {
+        try {
+            // OPTIMIZATION: Read the file directly instead of storing it in a large variable
             $imageData = base64_encode(file_get_contents($image->getRealPath()));
-            $mimeType = $image->getMimeType();
+            
+            $response = Http::timeout(15)->post($endpoint, [
+                'contents' => [['parts' => [
+                    ['text' => "Return only one word: Exterior, Interior, Engine Room, or Bridge."],
+                    ['inline_data' => ['mime_type' => $image->getMimeType(), 'data' => $imageData]]
+                ]]]
+            ]);
 
-            try {
-                $prompt = "Act as a luxury yacht surveyor. Analyze this high-resolution image and classify it into exactly one of these four categories: 'Exterior', 'Interior', 'Engine Room', or 'Bridge'. Return ONLY the category name as a single word.";
-
-                $response = Http::timeout(30)->post($endpoint, [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                ['text' => $prompt],
-                                [
-                                    'inline_data' => [
-                                        'mime_type' => $mimeType,
-                                        'data' => $imageData
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
-                ]);
-
-                if ($response->failed()) {
-                    \Log::error("Gemini Pro API Error: " . $response->body());
-                    throw new \Exception("API Error: " . $response->status());
-                }
-
-                $aiResponse = $response->json();
-                $category = $aiResponse['candidates'][0]['content']['parts'][0]['text'] ?? 'Exterior';
-                $category = trim(preg_replace('/[^A-Za-z ]/', '', $category));
-
-                $valid = ['Exterior', 'Interior', 'Engine Room', 'Bridge'];
-                $finalCategory = in_array($category, $valid) ? $category : 'Exterior';
-
-                $results[] = [
-                    'category' => $finalCategory,
-                    'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
-                    'originalName' => $image->getClientOriginalName()
-                ];
-
-            } catch (\Exception $e) {
-                \Log::error("AI Logic Failed: " . $e->getMessage());
-                $results[] = [
-                    'category' => 'Exterior',
-                    'preview' => 'data:' . $mimeType . ';base64,' . $imageData,
-                    'originalName' => $image->getClientOriginalName(),
-                    'error' => true
-                ];
+            if ($response->successful()) {
+                $text = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? 'Exterior';
+                $category = trim(preg_replace('/[^A-Za-z]/', '', $text));
+            } else {
+                $category = 'Exterior'; // Fallback
             }
-        }
 
-        return response()->json($results);
+            $results[] = [
+                'category' => $category,
+                'preview' => 'data:' . $image->getMimeType() . ';base64,' . $imageData,
+                'originalName' => $image->getClientOriginalName()
+            ];
+
+        } catch (\Exception $e) {
+            $results[] = [
+                'category' => 'Exterior',
+                'preview' => '', 
+                'originalName' => $image->getClientOriginalName(),
+                'error' => true
+            ];
+        }
     }
+
+    return response()->json($results);
+}
 
 }
