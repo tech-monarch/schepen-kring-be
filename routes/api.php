@@ -8,6 +8,18 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\BidController;
 use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\AnalyticsController;
+
+// FIX: Remove the closure from here and handle headers in the Controller
+Route::post('/analytics/track', [AnalyticsController::class, 'track']);
+
+// Handle Preflight (Browser check)
+Route::options('/analytics/track', function() {
+    return response('', 200)
+        ->header('Access-Control-Allow-Origin', '*')
+        ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        ->header('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, Authorization');
+});
 
 // AUTH
 Route::post('/login', [UserController::class, 'login']);
