@@ -14,6 +14,7 @@ Route::post('/register', [UserController::class, 'register']);
 // 1. PUBLIC ROUTES (Anyone can view)
 Route::get('yachts', [YachtController::class, 'index']);
 Route::get('yachts/{id}', [YachtController::class, 'show']);
+Route::get('bids/{id}/history', [BidController::class, 'history']);
 
 // 2. PROTECTED ROUTES (Must be logged in)
 Route::middleware('auth:sanctum')->group(function () {
