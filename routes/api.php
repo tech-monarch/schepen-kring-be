@@ -20,7 +20,7 @@ Route::options('/analytics/track', function() {
         ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         ->header('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, Authorization');
 });
-
+Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
 // AUTH
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/register', [UserController::class, 'register']);
