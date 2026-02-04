@@ -6,6 +6,7 @@ use App\Http\Controllers\YachtController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BidController;
+use App\Http\Controllers\GeminiController;
 
 // AUTH
 Route::post('/login', [UserController::class, 'login']);
@@ -15,6 +16,10 @@ Route::post('/register', [UserController::class, 'register']);
 Route::get('yachts', [YachtController::class, 'index']);
 Route::get('yachts/{id}', [YachtController::class, 'show']);
 Route::get('bids/{id}/history', [BidController::class, 'history']);
+
+// Put this inside your sanctum group if you want to track users, 
+// or outside if you want public guests to chat.
+Route::post('/ai/chat', [GeminiController::class, 'chat']);
 
 // 2. PROTECTED ROUTES (Must be logged in)
 Route::middleware('auth:sanctum')->group(function () {
