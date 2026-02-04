@@ -154,7 +154,7 @@ public function classifyImages(Request $request): JsonResponse
     ]);
 
     // Use Gemini 1.5 Pro for maximum reasoning capability
-    $apiKey = "AIzaSyBcM6a6-Dyh-HQjybNcqB0NmS1MResz-KM";
+    $apiKey = "AIzaSyDwuu7UILyKXZNyB2KclKyGpEYiBNUNhc0";
     $model = "gemini-2.5-pro"; 
     $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
