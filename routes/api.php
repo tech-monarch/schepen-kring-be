@@ -7,6 +7,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BidController;
 use App\Http\Controllers\GeminiController;
+use App\Http\Controllers\ProfileController;
 
 // AUTH
 Route::post('/login', [UserController::class, 'login']);
@@ -66,4 +67,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('users/{user}/toggle-permission', [UserController::class, 'togglePermission']);
     });
 
+
+    // USER PROFILE ROUTES
+    Route::get('/profile', [ProfileController::class, 'show']);
+    Route::post('/profile/update', [ProfileController::class, 'update']); // Using POST for multipart/form-data support
 });
