@@ -4,10 +4,6 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
-use App\Http\Middleware\PublicCors;
-use App\Http\Middleware\PrivateCors;
-use App\Http\Middleware\Cors; // <--- Ensure this is imported
-
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
@@ -16,25 +12,25 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // 1. GLOBAL CORS (This fixes the blocking)
-        $middleware->append(Cors::class); 
+        // 1. We disable the custom Cors::class to stop the "*, *" duplicate error.
+        // Laravel 11 handles CORS automatically via config/cors.php.
+        // $middleware->append(\App\Http\Middleware\Cors::class); 
 
-        // Required for Sanctum
+        // 2. Required for Sanctum authentication
         $middleware->statefulApi();
-        
-        // Keep your existing preflight if you have it, 
-        // but the Cors.php I gave you handles preflight already.
-        // $middleware->prepend(\App\Http\Middleware\HandleCorsPreflight::class);
 
-        // Route middleware aliases
+        // 3. Register your Role/Permission aliases
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'cors.public'  => PublicCors::class,
-            'cors.private' => PrivateCors::class,
+            
+            // We comment these out because if the class files have errors, 
+            // they will throw a 500 Internal Server Error.
+            // 'cors.public'  => \App\Http\Middleware\PublicCors::class,
+            // 'cors.private' => \App\Http\Middleware\PrivateCors::class,
         ]);
 
-        // CSRF exemption for API
+        // 4. Ensure API doesn't trip over CSRF tokens
         $middleware->validateCsrfTokens(except: [
             'api/*',
         ]);
