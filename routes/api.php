@@ -24,6 +24,8 @@ Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
 // AUTH
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/register', [UserController::class, 'register']);
+// Place this near your other public auth routes [cite: 47]
+Route::post('/register/partner', [UserController::class, 'registerPartner']);
 
 // 1. PUBLIC ROUTES (Anyone can view)
 Route::get('yachts', [YachtController::class, 'index']);

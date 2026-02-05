@@ -13,21 +13,20 @@ class UserController extends Controller
     /**
      * Display the Global Directory of users.
      */
-public function index()
-{
-    // Eager load permissions to avoid the 500/Slow loading errors [cite: 11]
-    $users = User::with('permissions')->orderBy('name', 'asc')->get();
+    public function index()
+    {
+        // Eager load permissions to avoid the 500/Slow loading errors [cite: 11]
+        $users = User::with('permissions')->orderBy('name', 'asc')->get();
+        // Use a collection map to ensure PHP treats each item as a User model
+        $users->transform(function ($user) {
+            /** @var \App\Models\User $user */
+            // We set 'permissions' to match the frontend 'permissions?: string[]' interface [cite: 6]
+            $user->permissions = $user->getPermissionNames(); 
+            return $user;
+        });
+        return response()->json($users);
+    }
 
-    // Use a collection map to ensure PHP treats each item as a User model
-    $users->transform(function ($user) {
-        /** @var \App\Models\User $user */
-        // We set 'permissions' to match the frontend 'permissions?: string[]' interface [cite: 6]
-        $user->permissions = $user->getPermissionNames(); 
-        return $user;
-    });
-
-    return response()->json($users);
-}
     /**
      * Register a new Staff Member or Customer.
      */
@@ -37,11 +36,10 @@ public function index()
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8',
-            'role' => 'required|in:Admin,Employee,Customer',
+            'role' => 'required|in:Admin,Employee,Customer,Partner', // Added Partner [cite: 6]
             'status' => 'required|in:Active,Suspended',
             'access_level' => 'required|in:Full,Limited,None',
         ]);
-
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -50,7 +48,6 @@ public function index()
             'status' => $validated['status'],
             'access_level' => $validated['access_level'],
         ]);
-
         return response()->json($user, 201);
     }
 
@@ -74,12 +71,11 @@ public function index()
                 'email',
                 Rule::unique('users')->ignore($user->id),
             ],
-            'role' => 'sometimes|in:Admin,Employee,Customer',
+            'role' => 'sometimes|in:Admin,Employee,Customer,Partner', // Added Partner [cite: 13]
             'status' => 'sometimes|in:Active,Suspended',
             'access_level' => 'sometimes|in:Full,Limited,None',
             'password' => 'sometimes|min:8',
         ]);
-
         if (isset($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         }
@@ -103,117 +99,135 @@ public function index()
      */
     public function toggleStatus(User $user)
     {
-        $user->status = ($user->status === 'Active') ? 'Suspended' : 'Active';
+        $user->status = ($user->status === 'Active') ?
+        'Suspended' : 'Active';
         $user->save();
 
         return response()->json($user);
     }
 
-    // In app/Http/Controllers/UserController.php
+    public function togglePermission(Request $request, User $user)
+    {
+        $request->validate([
+            'permission' => 'required|string|exists:permissions,name'
+        ]);
+        $permission = $request->permission;
 
-public function togglePermission(Request $request, User $user)
-{
-    $request->validate([
-        'permission' => 'required|string|exists:permissions,name'
-    ]);
+        if ($user->hasPermissionTo($permission)) {
+            $user->revokePermissionTo($permission);
+            $status = 'detached';
+        } else {
+            $user->givePermissionTo($permission);
+            $status = 'attached';
+        }
 
-    $permission = $request->permission;
-
-    // Use Spatie's built-in toggle logic
-    if ($user->hasPermissionTo($permission)) {
-        $user->revokePermissionTo($permission);
-        $status = 'detached';
-    } else {
-        $user->givePermissionTo($permission);
-        $status = 'attached';
+        $user->refresh();
+        return response()->json([
+            'status' => $status,
+            'current_permissions' => $user->getPermissionNames(), 
+            'message' => "Permission " . ($status === 'attached' ? 'granted' : 'revoked')
+        ]);
     }
-
-    // Refresh to get the truth from the database
-    $user->refresh();
-
-    return response()->json([
-        'status' => $status,
-        'current_permissions' => $user->getPermissionNames(), // This is what the frontend UI needs
-        'message' => "Permission " . ($status === 'attached' ? 'granted' : 'revoked')
-    ]);
-}
 
     public function login(Request $request)
-{
-    $credentials = $request->validate([
-        'email' => 'required|email',
-        'password' => 'required',
-    ]);
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+        if (!Auth::attempt($credentials)) {
+            return response()->json([
+                'message' => 'Identity could not be verified. Check credentials.'
+            ], 401);
+        }
 
-    if (!Auth::attempt($credentials)) {
+        $user = Auth::user();
+        $token = $user->createToken('terminal_access_token')->plainTextToken;
         return response()->json([
-            'message' => 'Identity could not be verified. Check credentials.'
-        ], 401);
+            'token' => $token,
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'userType' => $user->role, 
+            'status' => $user->status,
+            'access_level' => $user->access_level,
+            'permissions' => $user->getPermissionNames(), 
+        ]);
     }
 
-    $user = Auth::user();
-    
-    // Create the Sanctum token
-    $token = $user->createToken('terminal_access_token')->plainTextToken;
+    public function getAllPermissions() {
+        return response()->json(\Spatie\Permission\Models\Permission::all());
+    }
 
-    return response()->json([
-        'token' => $token,
-        'id' => $user->id,
-        'name' => $user->name,
-        'email' => $user->email,
-        'userType' => $user->role, // Admin, Employee, or Customer
-        'status' => $user->status,
-        'access_level' => $user->access_level,
-        'permissions' => $user->getPermissionNames(), // Returns ['view yachts', 'manage tasks', etc.]
-    ]);
-}
+    public function getAllRoles() {
+        return response()->json(\Spatie\Permission\Models\Role::all());
+    }
 
-    // Add this to UserController.php
-public function getAllPermissions() {
-    // Returns all permissions registered in the system
-    return response()->json(\Spatie\Permission\Models\Permission::all());
-}
+    public function register(Request $request) 
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:8',
+            'accept_terms' => 'accepted' 
+        ]);
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => 'Customer',      
+            'status' => 'Active',
+            'access_level' => 'None',
+            'registration_ip' => $request->ip(),
+            'user_agent' => $request->header('User-Agent'),
+            'terms_accepted_at' => now(),
+        ]);
 
-public function getAllRoles() {
-    // Returns all roles (Admin, Employee, etc.)
-    return response()->json(\Spatie\Permission\Models\Role::all());
-}
+        $user->assignRole('Customer');
+        $token = $user->createToken('terminal_access_token')->plainTextToken;
 
+        return response()->json([
+            'token' => $token,
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'userType' => $user->role, 
+        ], 201);
+    }
 
-// app/Http/Controllers/UserController.php
+    /**
+     * Register a new Partner identity.
+     */
+    public function registerPartner(Request $request) 
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:8',
+            'accept_terms' => 'accepted' 
+        ]);
 
-public function register(Request $request) 
-{
-    $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|email|unique:users,email',
-        'password' => 'required|min:8',
-        'accept_terms' => 'accepted' 
-    ]);
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => 'Partner', 
+            'status' => 'Active',
+            'access_level' => 'Limited', // Partners initialized with Limited access
+            'registration_ip' => $request->ip(),
+            'user_agent' => $request->header('User-Agent'),
+            'terms_accepted_at' => now(),
+        ]);
 
-    $user = User::create([
-        'name' => $validated['name'],
-        'email' => $validated['email'],
-        'password' => Hash::make($validated['password']),
-        'role' => 'Customer',      // Auto-assigning as requested [cite: 167]
-        'status' => 'Active',
-        'access_level' => 'None',
-        'registration_ip' => $request->ip(),
-        'user_agent' => $request->header('User-Agent'),
-        'terms_accepted_at' => now(),
-    ]);
+        $user->assignRole('Partner');
+        $token = $user->createToken('terminal_access_token')->plainTextToken;
 
-    // Ensure they have the Spatie role assigned if you are using that package [cite: 80]
-    $user->assignRole('Customer');
-
-    $token = $user->createToken('terminal_access_token')->plainTextToken;
-
-    return response()->json([
-        'token' => $token,
-        'id' => $user->id,
-        'name' => $user->name,
-        'email' => $user->email,
-        'userType' => $user->role, // Returns "Customer" instead of null 
-    ], 201);
-}
+        return response()->json([
+            'token' => $token,
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'userType' => $user->role, 
+        ], 201);
+    }
 }
