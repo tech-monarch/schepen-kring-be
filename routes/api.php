@@ -18,10 +18,6 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN');
 header('Access-Control-Allow-Credentials: true');
 
-// Handle Preflight requests for the yacht setup
-Route::options('yachts/partner-setup', function() {
-    return response('', 200);
-});
 
 // FIX: Remove the closure from here and handle headers in the Controller
 Route::post('/analytics/track', [AnalyticsController::class, 'track']);
@@ -55,9 +51,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route::post('bids/place', [BidController::class, 'placeBid'])
     //     ->middleware('permission:place bids');
     Route::post('bids/place', [BidController::class, 'placeBid']);
+    
+// Handle Preflight requests for the yacht setup
+Route::options('yachts/partner-setup', function() {
+    return response('', 200);
+});
 
-// Add this above your middleware groups
-Route::post('yachts/partner-setup', [YachtController::class, 'store']);
 
     // EMPLOYEE / ADMIN ACTIONS (Fleet Management)
     Route::middleware('permission:manage yachts')->group(function () {
