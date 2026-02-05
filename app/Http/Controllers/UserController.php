@@ -198,36 +198,41 @@ class UserController extends Controller
     /**
      * Register a new Partner identity.
      */
-    public function registerPartner(Request $request) 
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:8',
-            'accept_terms' => 'accepted' 
-        ]);
+public function registerPartner(Request $request) 
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|email|unique:users,email',
+        'password' => 'required|min:8',
+        'accept_terms' => 'accepted' 
+    ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => 'Partner', 
-            'status' => 'Active',
-            'access_level' => 'Limited', // Partners initialized with Limited access
-            'registration_ip' => $request->ip(),
-            'user_agent' => $request->header('User-Agent'),
-            'terms_accepted_at' => now(),
-        ]);
-
-        $user->assignRole('Partner');
-        $token = $user->createToken('terminal_access_token')->plainTextToken;
-
-        return response()->json([
-            'token' => $token,
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'userType' => $user->role, 
-        ], 201);
+    // SAFETY CHECK: Create the role if it doesn't exist in the DB
+    if (!\Spatie\Permission\Models\Role::where('name', 'Partner')->exists()) {
+        \Spatie\Permission\Models\Role::create(['name' => 'Partner', 'guard_name' => 'web']);
     }
+
+    $user = User::create([
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+        'password' => Hash::make($validated['password']),
+        'role' => 'Partner', 
+        'status' => 'Active',
+        'access_level' => 'Limited',
+        'registration_ip' => $request->ip(),
+        'user_agent' => $request->header('User-Agent'),
+        'terms_accepted_at' => now(),
+    ]);
+
+    $user->assignRole('Partner');
+    $token = $user->createToken('terminal_access_token')->plainTextToken;
+
+    return response()->json([
+        'token' => $token,
+        'id' => $user->id,
+        'name' => $user->name,
+        'email' => $user->email,
+        'userType' => $user->role, 
+    ], 201);
+}
 }
