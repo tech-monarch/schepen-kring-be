@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Required for Sanctum
         $middleware->statefulApi();
+        $middleware->prepend(\App\Http\Middleware\HandleCorsPreflight::class);
 
         // Route middleware aliases
         $middleware->alias([
