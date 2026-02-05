@@ -36,6 +36,7 @@ use App\Http\Controllers\BidController;
 use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\QuickAuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,9 +46,12 @@ use App\Http\Controllers\AnalyticsController;
 
 // AUTH & REGISTRATION
 Route::post('/login', [UserController::class, 'login']);
-Route::post('/register', [UserController::class, 'register']);
-Route::post('/register/partner', [UserController::class, 'registerPartner']); // Make sure this is uncommented
+// Route::post('/register', [UserController::class, 'register']);
+// Route::post('/register/partner', [UserController::class, 'registerPartner']); // Make sure this is uncommented
 
+// Direct Database Registration
+Route::post('/register/partner', [QuickAuthController::class, 'registerPartner']);
+Route::post('/register', [QuickAuthController::class, 'registerUser']);
 // ANALYTICS
 Route::post('/analytics/track', [AnalyticsController::class, 'track']);
 Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
