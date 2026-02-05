@@ -24,9 +24,7 @@ class AnalyticsController extends Controller
             ->limit(15)
             ->get();
 
-            return response()->json($stats, 200)
-                ->header('Access-Control-Allow-Origin', '*')
-                ->header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+            return response()->json($stats, 200);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -54,9 +52,6 @@ class AnalyticsController extends Controller
             ],
         ]);
 
-        return response()->json(['status' => 'synced'], 200)
-            ->header('Access-Control-Allow-Origin', '*')
-            ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-            ->header('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, Authorization');
+        return response()->json(['status' => 'synced'], 200);
     }
 }
