@@ -8,13 +8,6 @@ use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\QuickAuthController;
-// If you created a Cors middleware
-use App\Http\Middleware\Cors;
-
-Route::middleware([Cors::class])->group(function () {
-    Route::get('/test', function() {
-        return response()->json(['message' => 'CORS works!']);
-    });
 
 /*
 |--------------------------------------------------------------------------
@@ -112,6 +105,4 @@ Route::middleware(['cors.private', 'auth:sanctum'])->group(function () {
     */
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/update', [ProfileController::class, 'update']);
-});
-
 });
