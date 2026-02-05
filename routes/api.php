@@ -10,6 +10,19 @@ use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AnalyticsController;
 
+
+
+// Global CORS fix for local development
+header('Access-Control-Allow-Origin: http://localhost:3000');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN');
+header('Access-Control-Allow-Credentials: true');
+
+// Handle Preflight requests for the yacht setup
+Route::options('yachts/partner-setup', function() {
+    return response('', 200);
+});
+
 // FIX: Remove the closure from here and handle headers in the Controller
 Route::post('/analytics/track', [AnalyticsController::class, 'track']);
 
@@ -25,7 +38,7 @@ Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/register', [UserController::class, 'register']);
 // Place this near your other public auth routes [cite: 47]
-Route::post('/register/partner', [UserController::class, 'registerPartner']);
+// Route::post('/register/partner', [UserController::class, 'registerPartner']);
 
 // 1. PUBLIC ROUTES (Anyone can view)
 Route::get('yachts', [YachtController::class, 'index']);
