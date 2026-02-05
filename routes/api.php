@@ -1,5 +1,4 @@
 <?php
-die("hello");
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\YachtController;
 use App\Http\Controllers\TaskController;
