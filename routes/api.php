@@ -1,5 +1,18 @@
 <?php
 
+/**
+ * 1. CLEAN GLOBAL CORS HEADER
+ * This block handles everything. Do NOT add more headers below this.
+ */
+header('Access-Control-Allow-Origin: http://localhost:3000'); // ONLY ONE origin allowed here
+header('Access-Control-Allow-Methods: GET, POST, PATCH, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Auth-Token, X-XSRF-TOKEN');
+header('Access-Control-Allow-Credentials: true');
+
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    exit; // Stop execution for preflight requests
+}
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\YachtController;
@@ -10,69 +23,40 @@ use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AnalyticsController;
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
-
-// Global CORS fix for local development
-header('Access-Control-Allow-Origin: http://localhost:3000');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-XSRF-TOKEN');
-header('Access-Control-Allow-Credentials: true');
-
-
-// FIX: Remove the closure from here and handle headers in the Controller
-Route::post('/analytics/track', [AnalyticsController::class, 'track']);
-
-// Handle Preflight (Browser check)
-Route::options('/analytics/track', function() {
-    return response('', 200)
-        ->header('Access-Control-Allow-Origin', '*')
-        ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        ->header('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, Authorization');
-});
-Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
-// AUTH
+// AUTH & REGISTRATION
 Route::post('/login', [UserController::class, 'login']);
 Route::post('/register', [UserController::class, 'register']);
-// Place this near your other public auth routes [cite: 47]
-// Route::post('/register/partner', [UserController::class, 'registerPartner']);
+Route::post('/register/partner', [UserController::class, 'registerPartner']); // Make sure this is uncommented
 
-// 1. PUBLIC ROUTES (Anyone can view)
+// ANALYTICS
+Route::post('/analytics/track', [AnalyticsController::class, 'track']);
+Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
+
+// PUBLIC YACHT ROUTES
 Route::get('yachts', [YachtController::class, 'index']);
 Route::get('yachts/{id}', [YachtController::class, 'show']);
 Route::get('bids/{id}/history', [BidController::class, 'history']);
-
-// Put this inside your sanctum group if you want to track users, 
-// or outside if you want public guests to chat.
 Route::post('/ai/chat', [GeminiController::class, 'chat']);
-// 2. PROTECTED ROUTES (Must be logged in)
+
+// PROTECTED ROUTES (Must be logged in)
 Route::middleware('auth:sanctum')->group(function () {
     
     // CUSTOMER ACTIONS
-    // Route::post('bids/place', [BidController::class, 'placeBid'])
-    //     ->middleware('permission:place bids');
     Route::post('bids/place', [BidController::class, 'placeBid']);
-    
-// Handle Preflight requests for the yacht setup
-Route::options('yachts/partner-setup', function() {
-    return response('', 200);
-});
 
-
-    // EMPLOYEE / ADMIN ACTIONS (Fleet Management)
+    // YACHT MANAGEMENT (This is where your Account Setup will post to)
     Route::middleware('permission:manage yachts')->group(function () {
-        // Create Yacht
         Route::post('yachts', [YachtController::class, 'store']);
-        
-        // Update Yacht (Handles files via POST + _method=PUT)
         Route::post('yachts/{id}', [YachtController::class, 'update']);
-        
-        // Bulk Gallery Upload
         Route::post('yachts/{id}/gallery', [YachtController::class, 'uploadGallery']);
-        // Remove Yacht
         Route::delete('yachts/{id}', [YachtController::class, 'destroy']);
-
         Route::delete('/gallery/{id}', [YachtController::class, 'deleteGalleryImage']);
-
         Route::post('yachts/ai-classify', [YachtController::class, 'classifyImages']);
     });
 
@@ -88,7 +72,7 @@ Route::options('yachts/partner-setup', function() {
         Route::patch('tasks/{id}/status', [TaskController::class, 'updateStatus']);
     });
 
-    // USER & PERMISSION MANAGEMENT (SuperAdmin)
+    // USER MANAGEMENT
     Route::middleware('permission:manage users')->group(function () {
         Route::get('permissions', [UserController::class, 'getAllPermissions']);
         Route::get('roles', [UserController::class, 'getAllRoles']);
@@ -97,8 +81,7 @@ Route::options('yachts/partner-setup', function() {
         Route::post('users/{user}/toggle-permission', [UserController::class, 'togglePermission']);
     });
 
-
-    // USER PROFILE ROUTES
+    // PROFILE
     Route::get('/profile', [ProfileController::class, 'show']);
-    Route::post('/profile/update', [ProfileController::class, 'update']); // Using POST for multipart/form-data support
+    Route::post('/profile/update', [ProfileController::class, 'update']);
 });
