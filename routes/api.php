@@ -35,9 +35,6 @@ Route::get('bids/{id}/history', [BidController::class, 'history']);
 // Put this inside your sanctum group if you want to track users, 
 // or outside if you want public guests to chat.
 Route::post('/ai/chat', [GeminiController::class, 'chat']);
-// Add this above your middleware groups
-Route::post('yachts/partner-setup', [YachtController::class, 'store']);
-
 // 2. PROTECTED ROUTES (Must be logged in)
 Route::middleware('auth:sanctum')->group(function () {
     
@@ -45,6 +42,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route::post('bids/place', [BidController::class, 'placeBid'])
     //     ->middleware('permission:place bids');
     Route::post('bids/place', [BidController::class, 'placeBid']);
+
+// Add this above your middleware groups
+Route::post('yachts/partner-setup', [YachtController::class, 'store']);
 
     // EMPLOYEE / ADMIN ACTIONS (Fleet Management)
     Route::middleware('permission:manage yachts')->group(function () {
