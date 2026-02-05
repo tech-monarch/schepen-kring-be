@@ -24,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         
         // Keep your existing preflight if you have it, 
         // but the Cors.php I gave you handles preflight already.
-        $middleware->prepend(\App\Http\Middleware\HandleCorsPreflight::class);
+        // $middleware->prepend(\App\Http\Middleware\HandleCorsPreflight::class);
 
         // Route middleware aliases
         $middleware->alias([
