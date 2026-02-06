@@ -235,4 +235,32 @@ public function registerPartner(Request $request)
         'userType' => $user->role, 
     ], 201);
 }
+
+
+
+// app/Http/Controllers/UserController.php
+
+/**
+ * Impersonate a specific user.
+ */
+public function impersonate(User $user)
+{
+    // Security: Only Admins can impersonate [cite: 84]
+    if (Auth::user()->role !== 'Admin') {
+        return response()->json(['message' => 'Insufficient clearance for identity assumption.'], 403);
+    }
+
+    // Create a new token for the target user
+    $token = $user->createToken('impersonation_token')->plainTextToken;
+
+    return response()->json([
+        'token' => $token,
+        'message' => "Logged in as {$user->name}",
+        'user' => [
+            'id' => $user->id,
+            'role' => $user->role,
+            'name' => $user->name
+        ]
+    ]);
+}
 }

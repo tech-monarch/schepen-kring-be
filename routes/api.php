@@ -75,6 +75,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('permissions', [UserController::class, 'getAllPermissions']);
         Route::get('roles', [UserController::class, 'getAllRoles']);
         Route::apiResource('users', UserController::class);
+
+
+        // ADD THIS LINE [cite: 148]
+    Route::post('users/{user}/impersonate', [UserController::class, 'impersonate']);
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus']);
         Route::post('users/{user}/toggle-permission', [UserController::class, 'togglePermission']);
     });
