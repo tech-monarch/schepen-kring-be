@@ -12,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\QuickAuthController;
 use App\Http\Controllers\AuthorizationController;
+use App\Http\Controllers\BookingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -36,6 +37,10 @@ Route::get('yachts', [YachtController::class, 'index']);
 Route::get('yachts/{id}', [YachtController::class, 'show']);
 Route::get('bids/{id}/history', [BidController::class, 'history']);
 Route::post('/ai/chat', [GeminiController::class, 'chat']);
+
+
+    // Put this in the Public Routes section
+Route::get('yachts/{id}/available-slots', [BookingController::class, 'getAvailableSlots']);
 
 // PROTECTED ROUTES (Must be logged in)
 Route::middleware('auth:sanctum')->group(function () {
@@ -94,4 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::post('user/authorizations/{id}/sync', [AuthorizationController::class, 'syncAuthorizations']);    
     // Existing User Management [cite: 71]
     Route::apiResource('users', UserController::class);
+
+// Put this in the Protected Routes section
+Route::post('yachts/{id}/book', [BookingController::class, 'storeBooking']);
 });
