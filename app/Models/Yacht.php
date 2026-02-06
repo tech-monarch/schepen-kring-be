@@ -10,6 +10,7 @@ class Yacht extends Model {
     // app/Models/Yacht.php
 protected $fillable = [
     // Original Fields
+    'user_id',
     'name', 'price', 'status', 'year', 'length', 'make', 'model', 
     'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
     'water_capacity', 'cabins', 'heads', 'description', 'location', 
@@ -73,5 +74,9 @@ protected $fillable = [
 
     public function tasks(): HasMany {
         return $this->hasMany(Task::class);
+    }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

@@ -52,6 +52,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('yachts/ai-classify', [YachtController::class, 'classifyImages']);
     });
 
+    Route::prefix('partner')->group(function () {
+        Route::post('yachts', [YachtController::class, 'store']);
+        Route::post('yachts/{id}/gallery', [YachtController::class, 'uploadGallery']);
+        Route::post('yachts/ai-classify', [YachtController::class, 'classifyImages']);
+    });
+
     // BID FINALIZATION
     Route::middleware('permission:accept bids')->group(function () {
         Route::post('bids/{id}/accept', [BidController::class, 'acceptBid']);

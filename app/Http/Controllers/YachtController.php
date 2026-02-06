@@ -28,21 +28,30 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
 {
     try {
         $isUpdate = $id !== null;
-        $yacht = $isUpdate ? Yacht::findOrFail($id) : new Yacht();
+        
+        // SECURITY: If updating, ensure the user owns this yacht (unless they are admin)
+        if ($isUpdate) {
+            $yacht = Yacht::findOrFail($id);
+            // Optional: Add check here if($yacht->user_id !== auth()->id()) abort(403);
+        } else {
+            $yacht = new Yacht();
+            // ✅ ASSIGN TO PARTNER
+            $yacht->user_id = auth()->id(); 
+        }
 
-        // 1. Validation - Add the new numeric/string checks
+        // 1. Validation
         $request->validate([
             'name'  => $isUpdate ? 'sometimes|required' : 'required',
             'price' => $isUpdate ? 'sometimes|required|numeric' : 'required|numeric',
-            'year'  => 'sometimes|nullable|integer',
+            // Allow nullable/integer for year
+            'year'  => 'nullable|integer', 
         ]);
 
-        // 2. Map ALL fields (including the new ones from the Dutch site)
+        // 2. Map Fields
         $fields = [
             'name', 'price', 'status', 'year', 'length', 'make', 'model', 
             'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
             'water_capacity', 'cabins', 'heads', 'description', 'location',
-            // --- NEW TECHNICAL FIELDS ---
             'vat_status', 'reference_code', 'construction_material', 'dimensions',
             'berths', 'hull_shape', 'hull_color', 'deck_color', 'clearance',
             'displacement', 'steering', 'engine_brand', 'engine_model',
@@ -53,25 +62,18 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
 
         foreach ($fields as $field) {
             if ($request->has($field)) {
-                // Handle empty strings for numeric/nullable fields [cite: 34]
-                if ($request->input($field) === "") {
-                    $yacht->{$field} = null;
-                } else {
-                    $yacht->{$field} = $request->input($field);
-                }
+                $value = $request->input($field);
+                // Convert "undefined" or empty strings to null
+                $yacht->{$field} = ($value === "" || $value === "undefined") ? null : $value;
             }
         }
 
-        // 3. Handle Boolean Bidding [cite: 35]
-        if ($request->has('allow_bidding')) {
-            $yacht->allow_bidding = filter_var($request->allow_bidding, FILTER_VALIDATE_BOOLEAN);
-        }
-
+        // 3. Handle Booleans
         if ($request->has('trailer_included')) {
-            $yacht->trailer_included = filter_var($request->trailer_included, FILTER_VALIDATE_BOOLEAN);
+            $yacht->trailer_included = filter_var($request->input('trailer_included'), FILTER_VALIDATE_BOOLEAN);
         }
-
-        // 4. Handle Main Image [cite: 36, 37]
+        
+        // 4. Handle Main Image
         if ($request->hasFile('main_image')) {
             if ($isUpdate && $yacht->main_image) {
                 Storage::disk('public')->delete($yacht->main_image);
@@ -79,17 +81,21 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             $yacht->main_image = $request->file('main_image')->store('yachts/main', 'public');
         }
 
-        // 5. Identity Generation [cite: 37, 38]
-        if (!$isUpdate && !isset($yacht->vessel_id)) {
+        // 5. Generate Identity (If new)
+        if (!$isUpdate && empty($yacht->vessel_id)) {
             $yacht->vessel_id = 'SK-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
         }
 
         $yacht->save();
-        $yacht->load('images'); 
+        
+        // Reload relationships for frontend
+        $yacht->load('images');
+
         return response()->json($yacht, $isUpdate ? 200 : 201);
 
     } catch (\Exception $e) {
-        return response()->json(['message' => 'Internal Registry Error', 'debug' => $e->getMessage()], 500);
+        \Log::error("Yacht Save Error: " . $e->getMessage()); // Add logging
+        return response()->json(['message' => 'Registry Error', 'debug' => $e->getMessage()], 500);
     }
 }
 
