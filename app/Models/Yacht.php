@@ -79,4 +79,14 @@ protected $fillable = [
     {
         return $this->belongsTo(User::class);
     }
+
+    // app/Models/Yacht.php
+
+// app/Models/Yacht.php
+
+public function availabilityRules()
+{
+    // Link to the model created in Step 1
+    return $this->hasMany(YachtAvailabilityRule::class, 'yacht_id');
+}
 }

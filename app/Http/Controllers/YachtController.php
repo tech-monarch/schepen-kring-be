@@ -7,6 +7,7 @@ use App\Models\YachtImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\JsonResponse;
+use App\Models\YachtAvailabilityRule;
 
 class YachtController extends Controller {
 
@@ -36,7 +37,7 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             $yacht->user_id = auth()->id(); 
         }
 
-        // 1. Validation - Explicitly allow availability_rules [cite: 20]
+        // 1. Validation - Explicitly allow availability_rules
         $request->validate([
             'name'               => $isUpdate ? 'sometimes|required' : 'required',
             'price'              => $isUpdate ? 'sometimes|required|numeric' : 'required|numeric',
@@ -44,7 +45,7 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             'availability_rules' => 'nullable|string', 
         ]);
 
-        // 2. Map Fields [cite: 21, 22]
+        // 2. Map Fields
         $fields = [
             'name', 'price', 'status', 'year', 'length', 'make', 'model', 
             'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
@@ -64,12 +65,12 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             }
         }
 
-        // 3. Handle Booleans [cite: 26]
+        // 3. Handle Booleans
         if ($request->has('trailer_included')) {
             $yacht->trailer_included = filter_var($request->input('trailer_included'), FILTER_VALIDATE_BOOLEAN); 
         }
         
-        // 4. Handle Main Image [cite: 27]
+        // 4. Handle Main Image
         if ($request->hasFile('main_image')) {
             if ($isUpdate && $yacht->main_image) {
                 Storage::disk('public')->delete($yacht->main_image);
@@ -77,12 +78,12 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             $yacht->main_image = $request->file('main_image')->store('yachts/main', 'public'); 
         }
 
-        // 5. Save Availability Rules - Sync relationship [cite: 31]
+        // 5. Save Availability Rules - Sync relationship
         if ($request->has('availability_rules')) {
             $rules = json_decode($request->input('availability_rules'), true);
             
             if ($isUpdate) {
-                // Ensure the relationship exists in the Yacht model
+                // This targets the yacht_availability_rules table via relationship
                 $yacht->availabilityRules()->delete(); 
             }
             
@@ -97,21 +98,25 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             }
         }
 
-        // 6. Generate Identity (If new) [cite: 28, 29]
+        // 6. Generate Identity (If new)
         if (!$isUpdate && empty($yacht->vessel_id)) {
             $yacht->vessel_id = 'SK-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
         }
 
         $yacht->save(); 
         
-        // Reload relationships for frontend [cite: 30, 31]
+        // Reload relationships for frontend
         $yacht->load(['images', 'availabilityRules']);
 
         return response()->json($yacht, $isUpdate ? 200 : 201); 
 
     } catch (\Exception $e) {
-        \Log::error("Yacht Save Error: " . $e->getMessage()); 
-        return response()->json(['message' => 'Registry Error', 'debug' => $e->getMessage()], 500); 
+        Log::error("Yacht Save Error: " . $e->getMessage()); 
+        return response()->json([
+            'message' => 'Registry Error', 
+            'debug' => $e->getMessage(),
+            'line' => $e->getLine()
+        ], 500); 
     }
 }
 
