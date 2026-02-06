@@ -60,7 +60,7 @@ public function storeBooking(Request $request, $id)
     $start = \Carbon\Carbon::parse($request->start_at);
     
     // Add 60 mins (viewing) + 15 mins (buffer) as per requirements
-    $end = $start->copy()->addMinutes(75); [cite: 172]
+    $end = $start->copy()->addMinutes(75); 
 
     // Final check for overlap before saving
     $overlap = \DB::table('bookings')
