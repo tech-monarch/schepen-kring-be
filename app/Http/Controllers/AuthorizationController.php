@@ -18,24 +18,32 @@ class AuthorizationController extends Controller
     }
 
     // Used by Role Management Page to grant/revoke rights [cite: 28, 45]
-    public function toggleAuthorization(Request $request, $userId): JsonResponse 
-    {
-        $request->validate(['operation' => 'required|string']);
-        
-        $auth = UserAuthorization::where('user_id', $userId)
-            ->where('operation_name', $request->operation)
-            ->first();
+public function syncAuthorizations(Request $request, $userId): JsonResponse 
+{
+    // Expecting an array of strings: ['manage yachts', 'manage tasks']
+    $request->validate([
+        'operations' => 'present|array',
+        'operations.*' => 'string'
+    ]);
 
-        if ($auth) {
-            $auth->delete();
-            return response()->json(['message' => 'Revoked', 'status' => 'detached']);
-        }
+    // 1. Wipe current permissions for this user to start fresh
+    UserAuthorization::where('user_id', $userId)->delete();
 
-        UserAuthorization::create([
+    // 2. Insert the new selection
+    $newAuths = [];
+    foreach ($request->operations as $op) {
+        $newAuths[] = [
             'user_id' => $userId,
-            'operation_name' => $request->operation
-        ]);
-
-        return response()->json(['message' => 'Granted', 'status' => 'attached']);
+            'operation_name' => $op,
+            'created_at' => now(),
+            'updated_at' => now()
+        ];
     }
+
+    if (!empty($newAuths)) {
+        UserAuthorization::insert($newAuths);
+    }
+
+    return response()->json(['message' => 'Permissions updated successfully']);
+}
 }

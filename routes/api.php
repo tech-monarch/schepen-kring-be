@@ -91,8 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // New Authorization Endpoints
     Route::get('user/authorizations/{id}', [AuthorizationController::class, 'getUserPermissions']);
-    Route::post('user/authorizations/{id}/toggle', [AuthorizationController::class, 'toggleAuthorization']);
-    
+Route::post('user/authorizations/{id}/sync', [AuthorizationController::class, 'syncAuthorizations']);    
     // Existing User Management [cite: 71]
     Route::apiResource('users', UserController::class);
 });
