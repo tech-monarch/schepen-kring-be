@@ -11,6 +11,7 @@ use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\QuickAuthController;
+use App\Http\Controllers\AuthorizationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -86,4 +87,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // PROFILE
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/update', [ProfileController::class, 'update']);
+
+    
+    // New Authorization Endpoints
+    Route::get('user/authorizations/{id}', [AuthorizationController::class, 'getUserPermissions']);
+    Route::post('user/authorizations/{id}/toggle', [AuthorizationController::class, 'toggleAuthorization']);
+    
+    // Existing User Management [cite: 71]
+    Route::apiResource('users', UserController::class);
 });
