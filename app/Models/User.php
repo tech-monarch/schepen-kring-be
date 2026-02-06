@@ -19,14 +19,22 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
-    protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'role',
-        'status',
-        'access_level', 'registration_ip', 'user_agent', 'terms_accepted_at', 'profile_image',
-    ];
+protected $fillable = [
+    'name',
+    'email',
+    'password',
+    'role',
+    'status',
+    'access_level', 
+    'registration_ip', 
+    'user_agent', 
+    'terms_accepted_at', 
+    'profile_image',
+    'phone_number',
+    'address',
+    'city',
+    'state',
+];
 
     public function tasks() {
         return $this->hasMany(Task::class, 'assigned_to');
