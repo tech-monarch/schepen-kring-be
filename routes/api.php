@@ -51,12 +51,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // YACHT MANAGEMENT (This is where your Account Setup will post to)
     Route::middleware('permission:manage yachts')->group(function () {
         Route::post('yachts', [YachtController::class, 'store']);
-        Route::post('yachts/{id}', [YachtController::class, 'update']);
+        // Route::post('yachts/{id}', [YachtController::class, 'update']);
         Route::post('yachts/{id}/gallery', [YachtController::class, 'uploadGallery']);
         Route::delete('yachts/{id}', [YachtController::class, 'destroy']);
         Route::delete('/gallery/{id}', [YachtController::class, 'deleteGalleryImage']);
         Route::post('yachts/ai-classify', [YachtController::class, 'classifyImages']);
     });
+    Route::post('yachts/{id}', [YachtController::class, 'update']);
+    Route::put('yachts/{id}', [YachtController::class, 'update']);
 
     Route::prefix('partner')->group(function () {
         Route::post('yachts', [YachtController::class, 'store']);
