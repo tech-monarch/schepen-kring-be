@@ -88,11 +88,16 @@ class UserController extends Controller
     /**
      * Terminate Account (Delete from system).
      */
-    public function destroy(User $user)
-    {
-        $user->delete();
-        return response()->json(['message' => 'Account successfully terminated.'], 204);
+public function destroy(User $user)
+{
+    // Security: Prevent self-deletion
+    if (Auth::id() === $user->id) {
+        return response()->json(['message' => 'Cannot terminate your own session.'], 403);
     }
+
+    $user->delete();
+    return response()->json(['message' => 'User deleted successfully']);
+}
 
     /**
      * Toggle status quickly (Active/Suspended).
