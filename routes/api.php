@@ -38,7 +38,26 @@ Route::get('yachts/{id}', [YachtController::class, 'show']);
 Route::get('bids/{id}/history', [BidController::class, 'history']);
 Route::post('/ai/chat', [GeminiController::class, 'chat']);
 
-
+// In api.php (temporarily)
+Route::post('/test-yacht-update', function(Request $request) {
+    try {
+        $yacht = \App\Models\Yacht::find(140);
+        
+        // Test setting a single field
+        $yacht->name = $request->input('name', 'Test Name');
+        $yacht->save();
+        
+        return response()->json(['success' => true, 'yacht' => $yacht]);
+    } catch (\Exception $e) {
+        \Log::error('Test error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        return response()->json([
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => $e->getFile(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
     // Put this in the Public Routes section
 Route::get('yachts/{id}/available-slots', [BookingController::class, 'getAvailableSlots']);
 

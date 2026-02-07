@@ -27,179 +27,151 @@ class YachtController extends Controller {
         return $this->saveYacht($request, $id);
     }
 
-    protected function saveYacht(Request $request, $id = null): JsonResponse
+protected function saveYacht(Request $request, $id = null): JsonResponse
     {
         try {
             DB::beginTransaction();
 
             $isUpdate = $id !== null;
+            $yacht = $isUpdate ? Yacht::findOrFail($id) : new Yacht();
 
-            $yacht = $isUpdate
-                ? Yacht::findOrFail($id)
-                : new Yacht(['user_id' => auth()->id()]);
+            // Basic validation
+            $rules = [
+                'name' => $isUpdate ? 'sometimes|required|string' : 'required|string',
+                'price' => $isUpdate ? 'sometimes|required|numeric' : 'required|numeric',
+                'year' => 'nullable|string', // Changed to string since your DB has varchar
+                'main_image' => $isUpdate ? 'nullable|image|max:5120' : 'sometimes|image|max:5120',
+            ];
 
-            /*
-            |--------------------------------------------------------------------------
-            | 1. Validation
-            |--------------------------------------------------------------------------
-            */
-            $validator = Validator::make($request->all(), [
-                'name'               => $isUpdate ? 'sometimes|required|string' : 'required|string',
-                'price'              => $isUpdate ? 'sometimes|required|numeric' : 'required|numeric',
-                'year'               => 'nullable|integer',
-                'make'               => 'nullable|string',
-                'model'              => 'nullable|string',
-                'length'             => 'nullable|numeric',
-                'beam'               => 'nullable|numeric',
-                'draft'              => 'nullable|numeric',
-                'engine_type'        => 'nullable|string',
-                'fuel_type'          => 'nullable|string',
-                'fuel_capacity'      => 'nullable|string',
-                'water_capacity'     => 'nullable|string',
-                'cabins'             => 'nullable|integer',
-                'heads'              => 'nullable|integer',
-                'berths'             => 'nullable|string',
-                'description'        => 'nullable|string',
-                'location'           => 'nullable|string',
-                'vat_status'         => 'nullable|string',
-                'reference_code'     => 'nullable|string',
-                'construction_material' => 'nullable|string',
-                'dimensions'         => 'nullable|string',
-                'hull_shape'         => 'nullable|string',
-                'hull_color'         => 'nullable|string',
-                'deck_color'         => 'nullable|string',
-                'clearance'          => 'nullable|string',
-                'displacement'       => 'nullable|string',
-                'steering'           => 'nullable|string',
-                'engine_brand'       => 'nullable|string',
-                'engine_model'       => 'nullable|string',
-                'engine_power'       => 'nullable|string',
-                'engine_hours'       => 'nullable|string',
-                'max_speed'          => 'nullable|string',
-                'fuel_consumption'   => 'nullable|string',
-                'voltage'            => 'nullable|string',
-                'interior_type'      => 'nullable|string',
-                'water_tank'         => 'nullable|string',
-                'water_system'       => 'nullable|string',
-                'navigation_electronics' => 'nullable|string',
-                'exterior_equipment' => 'nullable|string',
-                'safety_equipment'   => 'nullable|string',
-                'availability_rules' => 'nullable|string',
-                'main_image'         => $isUpdate ? 'nullable|image|max:5120' : 'sometimes|image|max:5120',
-            ]);
+            $validator = Validator::make($request->all(), $rules);
 
             if ($validator->fails()) {
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | 2. Safe Field Mapping (null-proof)
-            |--------------------------------------------------------------------------
-            */
-            $fields = [
+            // Fill basic fields - MATCHING YOUR DATABASE COLUMNS
+            $basicFields = [
                 'name', 'price', 'status', 'year', 'length', 'make', 'model',
                 'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity',
-                'water_capacity', 'cabins', 'heads', 'description', 'location',
-                'vat_status', 'reference_code', 'construction_material', 'dimensions',
-                'berths', 'hull_shape', 'hull_color', 'deck_color', 'clearance',
-                'displacement', 'steering', 'engine_brand', 'engine_model',
-                'engine_power', 'engine_hours', 'max_speed', 'fuel_consumption',
-                'voltage', 'interior_type', 'water_tank', 'water_system',
-                'navigation_electronics', 'exterior_equipment', 'safety_equipment'
+                'water_capacity', 'location', 'vat_status', 'reference_code',
+                'construction_material', 'dimensions', 'berths', 'hull_shape',
+                'hull_color', 'deck_color', 'clearance', 'displacement', 'steering',
+                'engine_brand', 'engine_model', 'engine_power', 'engine_hours',
+                'max_speed', 'fuel_consumption', 'voltage', 'interior_type',
+                'water_tank', 'water_system', 'safety_equipment',
+                // Additional fields from your DB
+                'loa', 'lwl', 'air_draft', 'designer', 'builder', 'brand_model',
+                'external_url', 'print_url', 'last_serviced', 'hull_construction',
+                'super_structure_colour', 'super_structure_construction',
+                'stern_thruster', 'horse_power', 'fenders', 'hours_counter',
+                'cruising_speed', 'max_draft', 'min_draft', 'fuel', 'ballast',
+                'bow_thruster', 'engine_quantity'
             ];
 
-            foreach ($fields as $field) {
+            foreach ($basicFields as $field) {
                 if ($request->has($field)) {
                     $value = $request->input($field);
                     $yacht->{$field} = ($value === '' || $value === 'undefined' || $value === null) ? null : $value;
+                }
+            }
+
+            // Handle TEXT fields separately
+            $textFields = [
+                'cabins', 'heads', 'description', 'owners_comment', 'reg_details',
+                'known_defects', 'passenger_capacity', 'navigation_electronics',
+                'exterior_equipment', 'tankage', 'litres_per_hour', 'gearbox',
+                'cylinders', 'propeller_type', 'engine_location', 'cooling_system',
+                'navigation_lights', 'compass', 'depth_instrument', 'wind_instrument',
+                'autopilot', 'gps', 'vhf', 'plotter', 'speed_instrument', 'radar',
+                'toilet', 'shower', 'bath', 'life_raft', 'epirb', 'bilge_pump',
+                'mob_system', 'genoa', 'spinnaker', 'tri_sail', 'storm_jib',
+                'main_sail', 'winches', 'battery', 'battery_charger'
+            ];
+
+            foreach ($textFields as $field) {
+                if ($request->has($field)) {
+                    $value = $request->input($field);
+                    $yacht->{$field} = ($value === '' || $value === 'undefined' || $value === null) ? null : $value;
+                }
+            }
+
+            // Handle boolean fields - MATCHING YOUR DATABASE
+            $nonNullableBooleans = [
+                'trailer_included', 'generator', 'inverter', 'television',
+                'dvd_player', 'cd_player', 'anchor', 'spray_hood', 'bimini',
+                'central_heating', 'heating'
+            ];
+
+            $nullableBooleans = [
+                'oven', 'microwave', 'fridge', 'freezer', 'air_conditioning',
+                'flybridge'
+            ];
+
+            // Non-nullable booleans (default to 0)
+            foreach ($nonNullableBooleans as $field) {
+                if ($request->has($field)) {
+                    $value = $request->input($field);
+                    $yacht->{$field} = ($value === '1' || $value === 'true' || $value === 1 || $value === true);
                 } elseif (!$isUpdate) {
-                    // Set default values for new yacht
+                    $yacht->{$field} = 0;
+                }
+            }
+
+            // Nullable booleans
+            foreach ($nullableBooleans as $field) {
+                if ($request->has($field)) {
+                    $value = $request->input($field);
+                    $yacht->{$field} = ($value === '1' || $value === 'true' || $value === 1 || $value === true);
+                } elseif (!$isUpdate) {
                     $yacht->{$field} = null;
                 }
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | 3. Boolean Handling (null-safe, default 0)
-            |--------------------------------------------------------------------------
-            */
-            $booleanFields = [
-                'trailer_included',
-                'oven', 'microwave', 'fridge', 'freezer', 'air_conditioning',
-                'generator', 'inverter', 'television', 'dvd_player', 'cd_player',
-                'anchor', 'bimini', 'spray_hood', 'heating', 'central_heating'
-            ];
-
-            foreach ($booleanFields as $bool) {
-                if ($request->has($bool)) {
-                    $yacht->{$bool} = filter_var($request->input($bool), FILTER_VALIDATE_BOOLEAN);
-                } elseif (!$isUpdate) {
-                    $yacht->{$bool} = 0;
-                }
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | 4. Handle Main Image
-            |--------------------------------------------------------------------------
-            */
+            // Handle main image
             if ($request->hasFile('main_image')) {
                 if ($isUpdate && $yacht->main_image) {
                     Storage::disk('public')->delete($yacht->main_image);
                 }
-
-                $yacht->main_image = $request->file('main_image')
-                    ->store('yachts/main', 'public');
+                $yacht->main_image = $request->file('main_image')->store('yachts/main', 'public');
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | 5. Generate Vessel ID (new only)
-            |--------------------------------------------------------------------------
-            */
-            if (!$isUpdate && empty($yacht->vessel_id)) {
+            // Set user_id for new yachts
+            if (!$isUpdate) {
+                $yacht->user_id = auth()->id();
+                // Generate vessel ID
                 $yacht->vessel_id = 'SK-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | 6. SAVE YACHT FIRST
-            |--------------------------------------------------------------------------
-            */
+            // Save the yacht
             $yacht->save();
 
-            /*
-            |--------------------------------------------------------------------------
-            | 7. Sync Availability Rules (safe)
-            |--------------------------------------------------------------------------
-            */
+            // Handle availability rules
             if ($request->filled('availability_rules')) {
-                $rules = json_decode($request->input('availability_rules'), true);
-
-                if (is_array($rules)) {
-                    // delete old
-                    $yacht->availabilityRules()->delete();
-
-                    foreach ($rules as $rule) {
-                        if (isset($rule['day_of_week'], $rule['start_time'], $rule['end_time'])) {
-                            $yacht->availabilityRules()->create([
-                                'day_of_week' => $rule['day_of_week'],
-                                'start_time'  => $rule['start_time'],
-                                'end_time'    => $rule['end_time'],
-                            ]);
+                try {
+                    $rules = json_decode($request->input('availability_rules'), true);
+                    
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($rules)) {
+                        // Delete old rules
+                        $yacht->availabilityRules()->delete();
+                        
+                        foreach ($rules as $rule) {
+                            if (!empty($rule['day_of_week']) && !empty($rule['start_time']) && !empty($rule['end_time'])) {
+                                $yacht->availabilityRules()->create([
+                                    'day_of_week' => (int) $rule['day_of_week'],
+                                    'start_time' => $rule['start_time'],
+                                    'end_time' => $rule['end_time'],
+                                ]);
+                            }
                         }
                     }
+                } catch (\Exception $e) {
+                    Log::warning('Failed to save availability rules: ' . $e->getMessage());
                 }
             }
 
             DB::commit();
 
-            /*
-            |--------------------------------------------------------------------------
-            | 8. Reload Relationships
-            |--------------------------------------------------------------------------
-            */
+            // Reload with relationships
             $yacht->load(['images', 'availabilityRules']);
 
             return response()->json($yacht, $isUpdate ? 200 : 201);
@@ -209,13 +181,16 @@ class YachtController extends Controller {
 
             Log::error("Yacht Save Error: " . $e->getMessage(), [
                 'line' => $e->getLine(),
-                'file' => $e->getFile()
+                'file' => $e->getFile(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->except(['main_image', 'images']),
+                'yacht_id' => $id ?? 'new'
             ]);
 
             return response()->json([
-                'message' => 'Registry Error',
-                'debug'   => $e->getMessage(),
-                'line'    => $e->getLine()
+                'message' => 'Failed to save yacht',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
             ], 500);
         }
     }
