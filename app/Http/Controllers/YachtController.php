@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\JsonResponse;
 use App\Models\YachtAvailabilityRule;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 class YachtController extends Controller {
 
     public function index(): JsonResponse {
@@ -25,100 +28,162 @@ class YachtController extends Controller {
         return $this->saveYacht($request, $id);
     }
 
-protected function saveYacht(Request $request, $id = null): JsonResponse 
+protected function saveYacht(Request $request, $id = null): JsonResponse
 {
     try {
-        $isUpdate = $id !== null;
-        
-        if ($isUpdate) {
-            $yacht = Yacht::findOrFail($id);
-        } else {
-            $yacht = new Yacht();
-            $yacht->user_id = auth()->id(); 
-        }
+        DB::beginTransaction();
 
-        // 1. Validation - Explicitly allow availability_rules
+        $isUpdate = $id !== null;
+
+        $yacht = $isUpdate
+            ? Yacht::findOrFail($id)
+            : new Yacht(['user_id' => auth()->id()]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | 1. Validation
+        |--------------------------------------------------------------------------
+        */
         $request->validate([
-            'name'               => $isUpdate ? 'sometimes|required' : 'required',
+            'name'               => $isUpdate ? 'sometimes|required|string' : 'required|string',
             'price'              => $isUpdate ? 'sometimes|required|numeric' : 'required|numeric',
-            'year'               => 'nullable|integer', 
-            'availability_rules' => 'nullable|string', 
+            'year'               => 'nullable|integer',
+            'availability_rules' => 'nullable|string',
         ]);
 
-        // 2. Map Fields
+        /*
+        |--------------------------------------------------------------------------
+        | 2. Safe Field Mapping (null-proof)
+        |--------------------------------------------------------------------------
+        */
         $fields = [
-            'name', 'price', 'status', 'year', 'length', 'make', 'model', 
-            'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
-            'water_capacity', 'cabins', 'heads', 'description', 'location',
-            'vat_status', 'reference_code', 'construction_material', 'dimensions',
-            'berths', 'hull_shape', 'hull_color', 'deck_color', 'clearance',
-            'displacement', 'steering', 'engine_brand', 'engine_model',
-            'engine_power', 'engine_hours', 'max_speed', 'fuel_consumption',
-            'voltage', 'interior_type', 'water_tank', 'water_system',
-            'navigation_electronics', 'exterior_equipment', 'safety_equipment'
+            'name','price','status','year','length','make','model',
+            'beam','draft','engine_type','fuel_type','fuel_capacity',
+            'water_capacity','cabins','heads','description','location',
+            'vat_status','reference_code','construction_material','dimensions',
+            'berths','hull_shape','hull_color','deck_color','clearance',
+            'displacement','steering','engine_brand','engine_model',
+            'engine_power','engine_hours','max_speed','fuel_consumption',
+            'voltage','interior_type','water_tank','water_system',
+            'navigation_electronics','exterior_equipment','safety_equipment'
         ];
 
         foreach ($fields as $field) {
-            if ($request->has($field)) {
-                $value = $request->input($field); 
-                $yacht->{$field} = ($value === "" || $value === "undefined") ? null : $value; 
+            if ($request->exists($field)) {
+                $value = $request->input($field);
+
+                $yacht->{$field} =
+                    ($value === '' || $value === 'undefined' || $value === null)
+                        ? null
+                        : $value;
             }
         }
 
-        // 3. Handle Booleans
-        if ($request->has('trailer_included')) {
-            $yacht->trailer_included = filter_var($request->input('trailer_included'), FILTER_VALIDATE_BOOLEAN); 
+        /*
+        |--------------------------------------------------------------------------
+        | 3. Boolean Handling (null-safe, default 0)
+        |--------------------------------------------------------------------------
+        */
+        $booleanFields = [
+            'trailer_included',
+            'oven','microwave','fridge','freezer','air_conditioning',
+            'generator','inverter','television','dvd_player','cd_player',
+            'anchor','bimini','spray_hood','heating','central_heating'
+        ];
+
+        foreach ($booleanFields as $bool) {
+            $yacht->{$bool} = filter_var(
+                $request->input($bool, 0),
+                FILTER_VALIDATE_BOOLEAN
+            );
         }
-        
-        // 4. Handle Main Image
+
+        /*
+        |--------------------------------------------------------------------------
+        | 4. Handle Main Image
+        |--------------------------------------------------------------------------
+        */
         if ($request->hasFile('main_image')) {
             if ($isUpdate && $yacht->main_image) {
                 Storage::disk('public')->delete($yacht->main_image);
             }
-            $yacht->main_image = $request->file('main_image')->store('yachts/main', 'public'); 
+
+            $yacht->main_image = $request->file('main_image')
+                ->store('yachts/main', 'public');
         }
 
-        // 5. Save Availability Rules - Sync relationship
-        if ($request->has('availability_rules')) {
-            $rules = json_decode($request->input('availability_rules'), true);
-            
-            if ($isUpdate) {
-                // This targets the yacht_availability_rules table via relationship
-                $yacht->availabilityRules()->delete(); 
-            }
-            
-            if (is_array($rules)) {
-                foreach ($rules as $rule) {
-                    $yacht->availabilityRules()->create([
-                        'day_of_week' => $rule['day_of_week'],
-                        'start_time'  => $rule['start_time'],
-                        'end_time'    => $rule['end_time'],
-                    ]);
-                }
-            }
-        }
-
-        // 6. Generate Identity (If new)
+        /*
+        |--------------------------------------------------------------------------
+        | 5. Generate Vessel ID (new only)
+        |--------------------------------------------------------------------------
+        */
         if (!$isUpdate && empty($yacht->vessel_id)) {
             $yacht->vessel_id = 'SK-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
         }
 
-        $yacht->save(); 
-        
-        // Reload relationships for frontend
+        /*
+        |--------------------------------------------------------------------------
+        | 6. SAVE YACHT FIRST  ⚠️ (important fix)
+        |--------------------------------------------------------------------------
+        */
+        $yacht->save();
+
+        /*
+        |--------------------------------------------------------------------------
+        | 7. Sync Availability Rules (safe)
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('availability_rules')) {
+
+            $rules = json_decode($request->input('availability_rules'), true);
+
+            if (is_array($rules)) {
+
+                // delete old
+                $yacht->availabilityRules()->delete();
+
+                foreach ($rules as $rule) {
+                    if (
+                        isset($rule['day_of_week'], $rule['start_time'], $rule['end_time'])
+                    ) {
+                        $yacht->availabilityRules()->create([
+                            'day_of_week' => $rule['day_of_week'],
+                            'start_time'  => $rule['start_time'],
+                            'end_time'    => $rule['end_time'],
+                        ]);
+                    }
+                }
+            }
+        }
+
+        DB::commit();
+
+        /*
+        |--------------------------------------------------------------------------
+        | 8. Reload Relationships
+        |--------------------------------------------------------------------------
+        */
         $yacht->load(['images', 'availabilityRules']);
 
-        return response()->json($yacht, $isUpdate ? 200 : 201); 
+        return response()->json($yacht, $isUpdate ? 200 : 201);
 
-    } catch (\Exception $e) {
-        Log::error("Yacht Save Error: " . $e->getMessage()); 
+    } catch (\Throwable $e) {
+
+        DB::rollBack();
+
+        Log::error("Yacht Save Error: " . $e->getMessage(), [
+            'line' => $e->getLine(),
+            'file' => $e->getFile()
+        ]);
+
         return response()->json([
-            'message' => 'Registry Error', 
-            'debug' => $e->getMessage(),
-            'line' => $e->getLine()
-        ], 500); 
+            'message' => 'Registry Error',
+            'debug'   => $e->getMessage(),
+            'line'    => $e->getLine()
+        ], 500);
     }
 }
+
 
     public function uploadGallery(Request $request, $id): JsonResponse {
         $yacht = Yacht::findOrFail($id);

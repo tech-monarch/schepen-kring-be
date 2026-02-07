@@ -9,82 +9,75 @@ use Illuminate\Support\Str;
 class Yacht extends Model {
     // app/Models/Yacht.php
 protected $fillable = [
-    // Original Fields
-    'user_id',
-    'name', 'price', 'status', 'year', 'length', 'make', 'model', 
-    'beam', 'draft', 'engine_type', 'fuel_type', 'fuel_capacity', 
-    'water_capacity', 'cabins', 'heads', 'description', 'location', 
-    'main_image', 'vessel_id', 'allow_bidding',
 
-    // --- NEW TECHNICAL FIELDS ---
-    
+    // Core
+    'user_id',
+    'name','price','status','year','length','make','model',
+    'beam','draft','engine_type','fuel_type','fuel_capacity',
+    'water_capacity','cabins','heads','description','location',
+    'main_image','vessel_id','allow_bidding',
+
     // General Specifications
-    'vat_status',             // BTW-status
-    'reference_code',         // Referentiecode
-    'construction_material',  // Bouwmateriaal
-    'dimensions',             // L x B x D ca
-    'berths',                 // Slaapplaatsen
-    'hull_shape',             // Rompvorm
-    'hull_color',             // Rompkleur
-    'deck_color',             // Dek en opbouw kleur
-    'clearance',              // Doorvaarthoogte
-    'displacement',           // Waterverplaatsing
-    'steering',               // Besturing
-    
+    'vat_status','reference_code','construction_material','dimensions',
+    'berths','hull_shape','hull_color','deck_color','clearance',
+    'displacement','steering',
+
     // Engine & Electricity
-    'engine_brand',           // Merk motor
-    'engine_model',           // Model motor
-    'engine_power',           // Vermogen (pk)
-    'engine_hours',           // Draaiuren
-    'max_speed',              // Max snelheid
-    'fuel_consumption',       // Verbruik
-    'voltage',                // Voltage
+    'engine_brand','engine_model','engine_power','engine_hours',
+    'max_speed','fuel_consumption','voltage',
 
     // Accommodation & Systems
-    'interior_type',          // Type interieur
-    'water_tank',             // Watertank & materiaal
-    'water_system',           // Watersysteem
+    'interior_type','water_tank','water_system',
 
-    // Equipment & Safety (Text areas)
-    'navigation_electronics', // Navigatie en elektronica
-    'exterior_equipment',     // Uitrusting buitenom
-    'safety_equipment',       // Veiligheid
-    'trailer_included',       // Trailer (Boolean)
+    // Equipment & Safety
+    'navigation_electronics','exterior_equipment','safety_equipment',
+    'trailer_included',
 
-    // --- NEW XML CORE FIELDS ---
-    'external_url',           // Link to yacht listing
-    'print_url',              // Brochure link
-    'owners_comment',         // Owner comments (nullable)
-    'reg_details',            // Registration details
-    'known_defects',          // Known defects
-    'last_serviced',          // Last serviced date/info
-    'passenger_capacity',     // Number of passengers
-    'loa',                    // Length overall
-    'lwl',                    // Waterline length
-    'air_draft',              // Air draft
-    'designer',               // Designer name
-    'builder',                // Builder name
-    'where',                  // Location / yard
-    'hull_construction',      // Hull construction material
-    'super_structure_colour', // Superstructure color
-    'super_structure_construction', // Superstructure construction
-    'cockpit_type',           // Cockpit type
-    'control_type',           // Control type
-    'flybridge',              // Boolean
-    'oven',                   // Boolean
-    'microwave',              // Boolean
-    'fridge',                 // Boolean
-    'freezer',                // Boolean
-    'air_conditioning',       // Boolean
-    'stern_thruster',         // Stern thruster info
-    'horse_power',            // Engine horsepower description
+    // XML Core
+    'external_url','print_url','owners_comment','reg_details',
+    'known_defects','last_serviced','passenger_capacity',
+    'loa','lwl','air_draft','designer','builder','where',
+    'hull_construction','super_structure_colour',
+    'super_structure_construction',
 
-    
-    'control_type','cockpit_type','horse_power','stern_thruster','generator',
-    'inverter','television','cd_player','dvd_player','anchor','spray_hood',
-    'bimini','fenders','hours_counter','cruising_speed','max_draft','min_draft',
+    // Controls & Structure
+    'cockpit_type','control_type','flybridge',
+
+    // Kitchen / Comfort
+    'oven','microwave','fridge','freezer','air_conditioning',
+
+    // Engine extras
+    'stern_thruster','horse_power','generator','inverter',
+
+    // Media & Deck
+    'television','cd_player','dvd_player','anchor',
+    'spray_hood','bimini','fenders',
+
+    // Navigation / Metrics
+    'hours_counter','cruising_speed','max_draft','min_draft',
+
+    // Heating & Fuel
     'central_heating','heating','fuel',
 ];
+
+protected $casts = [
+    'price' => 'float',
+    'year' => 'integer',
+
+    // booleans
+    'trailer_included' => 'boolean',
+    'flybridge' => 'boolean',
+    'oven' => 'boolean',
+    'microwave' => 'boolean',
+    'fridge' => 'boolean',
+    'freezer' => 'boolean',
+    'air_conditioning' => 'boolean',
+
+    // numeric-like
+    'engine_hours' => 'integer',
+    'passenger_capacity' => 'integer',
+];
+
 
     /**
      * Auto-generate a unique Vessel ID when creating a yacht.
