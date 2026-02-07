@@ -233,7 +233,8 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
         
         // Delete gallery images from storage too
         foreach($yacht->images as $img) {
-            Storage::disk('public')->delete($img->image_path);
+            Storage::disk('public')->delete($img->url);
+
         }
         
         $yacht->delete();
