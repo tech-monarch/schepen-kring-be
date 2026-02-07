@@ -39,18 +39,47 @@ protected $fillable = [
     'max_speed',              // Max snelheid
     'fuel_consumption',       // Verbruik
     'voltage',                // Voltage
-    
+
     // Accommodation & Systems
     'interior_type',          // Type interieur
     'water_tank',             // Watertank & materiaal
     'water_system',           // Watersysteem
-    
+
     // Equipment & Safety (Text areas)
     'navigation_electronics', // Navigatie en elektronica
     'exterior_equipment',     // Uitrusting buitenom
     'safety_equipment',       // Veiligheid
-    'trailer_included'        // Trailer (Boolean)
+    'trailer_included',       // Trailer (Boolean)
+
+    // --- NEW XML CORE FIELDS ---
+    'external_url',           // Link to yacht listing
+    'print_url',              // Brochure link
+    'owners_comment',         // Owner comments (nullable)
+    'reg_details',            // Registration details
+    'known_defects',          // Known defects
+    'last_serviced',          // Last serviced date/info
+    'passenger_capacity',     // Number of passengers
+    'loa',                    // Length overall
+    'lwl',                    // Waterline length
+    'air_draft',              // Air draft
+    'designer',               // Designer name
+    'builder',                // Builder name
+    'where',                  // Location / yard
+    'hull_construction',      // Hull construction material
+    'super_structure_colour', // Superstructure color
+    'super_structure_construction', // Superstructure construction
+    'cockpit_type',           // Cockpit type
+    'control_type',           // Control type
+    'flybridge',              // Boolean
+    'oven',                   // Boolean
+    'microwave',              // Boolean
+    'fridge',                 // Boolean
+    'freezer',                // Boolean
+    'air_conditioning',       // Boolean
+    'stern_thruster',         // Stern thruster info
+    'horse_power',            // Engine horsepower description
 ];
+
     /**
      * Auto-generate a unique Vessel ID when creating a yacht.
      */
