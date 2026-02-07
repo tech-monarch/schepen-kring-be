@@ -125,7 +125,7 @@ class ImportYachtsFromXML extends Command
                 $data['status'] = $data['status'] ?? 'Draft';
                 $data['allow_bidding'] = $data['allow_bidding'] ?? 0;
                 $data['price'] = $data['price'] ?? 0;
-                $data['user_id'] = $data['user_id'] ?? 0;
+                $data['user_id'] = $data['user_id'] ?? 1;
 
                 // Normalize booleans
                 foreach ($boolFields as $boolField) {
