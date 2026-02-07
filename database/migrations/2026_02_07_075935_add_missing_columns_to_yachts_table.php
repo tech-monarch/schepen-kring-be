@@ -8,44 +8,44 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('yachts', function (Blueprint $table) {
-            // Add missing columns
-            $table->string('ballast')->nullable();
-            $table->string('bow_thruster')->nullable();
-            $table->string('engine_quantity')->nullable();
-            $table->string('tankage')->nullable();
-            $table->string('litres_per_hour')->nullable();
-            $table->string('gearbox')->nullable();
-            $table->string('cylinders')->nullable();
-            $table->string('propeller_type')->nullable();
-            $table->string('engine_location')->nullable();
-            $table->string('cooling_system')->nullable();
-            $table->string('navigation_lights')->nullable();
-            $table->string('compass')->nullable();
-            $table->string('depth_instrument')->nullable();
-            $table->string('wind_instrument')->nullable();
-            $table->string('autopilot')->nullable();
-            $table->string('gps')->nullable();
-            $table->string('vhf')->nullable();
-            $table->string('plotter')->nullable();
-            $table->string('speed_instrument')->nullable();
-            $table->string('radar')->nullable();
-            $table->string('toilet')->nullable();
-            $table->string('shower')->nullable();
-            $table->string('bath')->nullable();
-            $table->string('life_raft')->nullable();
-            $table->string('epirb')->nullable();
-            $table->string('bilge_pump')->nullable();
-            $table->string('mob_system')->nullable();
-            $table->string('genoa')->nullable();
-            $table->string('spinnaker')->nullable();
-            $table->string('tri_sail')->nullable();
-            $table->string('storm_jib')->nullable();
-            $table->string('main_sail')->nullable();
-            $table->string('winches')->nullable();
-            $table->string('battery')->nullable();
-            $table->string('battery_charger')->nullable();
-        });
+Schema::table('yachts', function (Blueprint $table) {
+    $table->text('ballast')->nullable();
+    $table->text('bow_thruster')->nullable();
+    $table->text('engine_quantity')->nullable();
+    $table->text('tankage')->nullable();
+    $table->text('litres_per_hour')->nullable();
+    $table->text('gearbox')->nullable();
+    $table->text('cylinders')->nullable();
+    $table->text('propeller_type')->nullable();
+    $table->text('engine_location')->nullable();
+    $table->text('cooling_system')->nullable();
+    $table->text('navigation_lights')->nullable();
+    $table->text('compass')->nullable();
+    $table->text('depth_instrument')->nullable();
+    $table->text('wind_instrument')->nullable();
+    $table->text('autopilot')->nullable();
+    $table->text('gps')->nullable();
+    $table->text('vhf')->nullable();
+    $table->text('plotter')->nullable();
+    $table->text('speed_instrument')->nullable();
+    $table->text('radar')->nullable();
+    $table->text('toilet')->nullable();
+    $table->text('shower')->nullable();
+    $table->text('bath')->nullable();
+    $table->text('life_raft')->nullable();
+    $table->text('epirb')->nullable();
+    $table->text('bilge_pump')->nullable();
+    $table->text('mob_system')->nullable();
+    $table->text('genoa')->nullable();
+    $table->text('spinnaker')->nullable();
+    $table->text('tri_sail')->nullable();
+    $table->text('storm_jib')->nullable();
+    $table->text('main_sail')->nullable();
+    $table->text('winches')->nullable();
+    $table->text('battery')->nullable();
+    $table->text('battery_charger')->nullable();
+});
+
     }
 
     public function down(): void
