@@ -4,158 +4,159 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Yacht;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Schema;
 
 class ImportYachtsFromJSON extends Command
 {
     protected $signature = 'yachts:import-json';
-    protected $description = 'Import yachts from boats.json and update DB';
+    protected $description = 'Import yachts from local JSON file';
 
     public function handle()
     {
-        $file = __DIR__ . '/boats.json';
+        $this->info("Reading local JSON file...");
 
-        if (!file_exists($file)) {
-            $this->error("JSON file not found at {$file}");
+        $jsonFile = __DIR__.'/boats.json';
+        if (!file_exists($jsonFile)) {
+            $this->error("JSON file not found: {$jsonFile}");
             return 1;
         }
 
-        $this->info("Reading local JSON file...");
-        $jsonContent = file_get_contents($file);
-        $yachtsJson = json_decode($jsonContent, true);
-
-        if (!$yachtsJson) {
-            $this->error("Failed to parse JSON file.");
+        $jsonData = json_decode(file_get_contents($jsonFile), true);
+        if (!$jsonData) {
+            $this->error("Failed to decode JSON file.");
             return 1;
         }
 
         $count = 0;
-        $summary = [
-            'created' => 0,
-            'updated' => 0,
-            'defaulted' => 0,
-        ];
 
-        // Boolean fields for proper casting
-        $booleanFields = [
-            'flybridge','oven','microwave','fridge','freezer','air_conditioning',
-            'generator','inverter','television','cd_player','dvd_player','anchor',
-            'spray_hood','bimini','central_heating','heating'
-        ];
-
-        foreach ($yachtsJson as $item) {
-            $data = [];
-
-            $data['vessel_id'] = $item['external_url'] ?? Str::uuid();
-            $data['name'] = $item['boat_name'] ?? 'Unnamed Yacht';
-            $data['status'] = $item['status'] ?? 'Draft';
-            $data['allow_bidding'] = isset($item['allow_bidding']) ? (bool)$item['allow_bidding'] : false;
-            $data['price'] = isset($item['price']) ? (float)$item['price'] : 0;
-            $data['user_id'] = 1; // fixed
-
-            $mapping = [
-                'current_bid' => 'current_bid',
-                'year' => 'year',
-                'length' => 'length',
-                'loa' => 'loa',
-                'lwl' => 'lwl',
-                'air_draft' => 'air_draft',
-                'designer' => 'designer',
-                'builder' => 'builder',
-                'where' => 'where',
-                'main_image' => 'main_image',
-                'make' => 'make',
-                'model' => 'model',
-                'beam' => 'beam',
-                'draft' => 'draft',
-                'engine_type' => 'engine_type',
-                'fuel_type' => 'fuel_type',
-                'fuel_capacity' => 'fuel_capacity',
-                'water_capacity' => 'water_capacity',
-                'cabins' => 'cabins',
-                'heads' => 'heads',
-                'description' => 'description',
-                'location' => 'where',
-                'brand_model' => 'brand_model',
-                'vat_status' => 'vat_status',
-                'reference_code' => 'hull_number',
-                'external_url' => 'external_url',
-                'print_url' => 'print_url',
-                'owners_comment' => 'owners_comment',
-                'reg_details' => 'reg_details',
-                'known_defects' => 'known_defects',
-                'last_serviced' => 'last_serviced',
-                'passenger_capacity' => 'passenger_capacity',
-                'construction_material' => 'construction_material',
-                'dimensions' => 'dimensions',
-                'berths' => 'berths',
-                'hull_shape' => 'hull_type',
-                'hull_construction' => 'hull_construction',
-                'hull_color' => 'hull_colour',
-                'super_structure_colour' => 'super_structure_colour',
-                'super_structure_construction' => 'super_structure_construction',
-                'deck_color' => 'deck_colour',
-                'deck_construction' => 'deck_construction',
-                'cockpit_type' => 'cockpit_type',
-                'control_type' => 'control_type',
-                'stern_thruster' => 'stern_thruster',
-                'horse_power' => 'horse_power',
-                'fenders' => 'fenders',
-                'hours_counter' => 'hours',
-                'cruising_speed' => 'cruising_speed',
-                'max_draft' => 'max_draft',
-                'min_draft' => 'min_draft',
-                'fuel' => 'fuel',
+        foreach ($jsonData as $data) {
+            $yachtData = [
+                'vessel_id' => $data['external_url'] ?? 'N/A',
+                'name' => $data['boat_name'] ?? 'Unnamed Yacht',
+                'status' => 'Draft',
+                'allow_bidding' => 0,
+                'price' => $data['price'] ?? 0,
+                'user_id' => 1,
+                'year' => $data['year'] ?? 'N/A',
+                'length' => $data['length'] ?? 'N/A',
+                'loa' => $data['loa'] ?? 'N/A',
+                'lwl' => $data['lwl'] ?? 'N/A',
+                'air_draft' => $data['air_draft'] ?? 'N/A',
+                'designer' => $data['designer'] ?? 'N/A',
+                'builder' => $data['builder'] ?? 'N/A',
+                'where' => $data['where'] ?? 'N/A',
+                'main_image' => $data['main_image'] ?? 'N/A',
+                'make' => $data['make'] ?? 'N/A',
+                'model' => $data['model'] ?? 'N/A',
+                'beam' => $data['beam'] ?? 'N/A',
+                'draft' => $data['draft'] ?? 'N/A',
+                'engine_type' => $data['engine_type'] ?? 'N/A',
+                'fuel_type' => $data['fuel_type'] ?? 'N/A',
+                'fuel_capacity' => $data['fuel_capacity'] ?? 'N/A',
+                'water_capacity' => $data['water_capacity'] ?? 'N/A',
+                'cabins' => $data['cabins'] ?? 0,
+                'heads' => $data['heads'] ?? 0,
+                'description' => $data['description'] ?? 'N/A',
+                'location' => $data['location'] ?? 'N/A',
+                'brand_model' => $data['brand_model'] ?? 'N/A',
+                'vat_status' => $data['vat_status'] ?? 'N/A',
+                'reference_code' => $data['reference_code'] ?? 'N/A',
+                'external_url' => $data['external_url'] ?? 'N/A',
+                'print_url' => $data['print_url'] ?? 'N/A',
+                'owners_comment' => $data['owners_comment'] ?? 'N/A',
+                'reg_details' => $data['reg_details'] ?? 'N/A',
+                'known_defects' => $data['known_defects'] ?? 'N/A',
+                'last_serviced' => $data['last_serviced'] ?? 'N/A',
+                'passenger_capacity' => $data['passenger_capacity'] ?? 0,
+                'construction_material' => $data['construction_material'] ?? 'N/A',
+                'dimensions' => $data['dimensions'] ?? 'N/A',
+                'berths' => $data['berths'] ?? 'N/A',
+                'hull_shape' => $data['hull_type'] ?? 'N/A',
+                'hull_construction' => $data['hull_construction'] ?? 'N/A',
+                'hull_color' => $data['hull_colour'] ?? 'N/A',
+                'super_structure_colour' => $data['super_structure_colour'] ?? 'N/A',
+                'super_structure_construction' => $data['super_structure_construction'] ?? 'N/A',
+                'deck_color' => $data['deck_colour'] ?? 'N/A',
+                'deck_construction' => $data['deck_construction'] ?? 'N/A',
+                'cockpit_type' => $data['cockpit_type'] ?? 'N/A',
+                'control_type' => $data['control_type'] ?? 'N/A',
+                'flybridge' => $data['flybridge'] === 'true' ? 1 : 0,
+                'oven' => $data['oven'] === 'true' ? 1 : 0,
+                'microwave' => $data['microwave'] === 'true' ? 1 : 0,
+                'fridge' => $data['fridge'] === 'true' ? 1 : 0,
+                'freezer' => $data['freezer'] === 'true' ? 1 : 0,
+                'air_conditioning' => $data['air_conditioning'] === 'true' ? 1 : 0,
+                'stern_thruster' => $data['stern_thruster'] ?? 'N/A',
+                'bow_thruster' => $data['bow_thruster'] ?? 'N/A',
+                'horse_power' => $data['horse_power'] ?? 'N/A',
+                'engine_manufacturer' => $data['engine_manufacturer'] ?? 'N/A',
+                'engine_quantity' => $data['engine_quantity'] ?? null,
+                'tankage' => $data['tankage'] ?? 'N/A',
+                'gallons_per_hour' => $data['gallons_per_hour'] ?? 'N/A',
+                'litres_per_hour' => $data['litres_per_hour'] ?? 'N/A',
+                'engine_location' => $data['engine_location'] ?? 'N/A',
+                'gearbox' => $data['gearbox'] ?? 'N/A',
+                'cylinders' => $data['cylinders'] ?? 'N/A',
+                'propeller_type' => $data['propeller_type'] ?? 'N/A',
+                'starting_type' => $data['starting_type'] ?? 'N/A',
+                'drive_type' => $data['drive_type'] ?? 'N/A',
+                'cooling_system' => $data['cooling_system'] ?? 'N/A',
+                'navigation_electronics' => json_encode([
+                    'navigation_lights' => $data['navigation_lights'] ?? false,
+                    'compass' => $data['compass'] ?? false,
+                    'depth_instrument' => $data['depth_instrument'] ?? false,
+                    'wind_instrument' => $data['wind_instrument'] ?? false,
+                    'autopilot' => $data['autopilot'] ?? false,
+                    'gps' => $data['gps'] ?? false,
+                    'vhf' => $data['vhf'] ?? false,
+                    'plotter' => $data['plotter'] ?? false,
+                    'speed_instrument' => $data['speed_instrument'] ?? false,
+                    'radar' => $data['radar'] ?? false,
+                ]),
+                'exterior_equipment' => json_encode([
+                    'toilet' => $data['toilet'] ?? 0,
+                    'shower' => $data['shower'] ?? 0,
+                    'bath' => $data['bath'] ?? 0,
+                    'life_raft' => $data['life_raft'] ?? false,
+                    'epirb' => $data['epirb'] ?? false,
+                    'bilge_pump' => $data['bilge_pump'] ?? false,
+                    'fire_extinguisher' => $data['fire_extinguisher'] ?? false,
+                    'mob_system' => $data['mob_system'] ?? false,
+                    'genoa' => $data['genoa'] ?? false,
+                    'spinnaker' => $data['spinnaker'] ?? false,
+                    'tri_sail' => $data['tri_sail'] ?? false,
+                    'storm_jib' => $data['storm_jib'] ?? false,
+                    'main_sail' => $data['main_sail'] ?? false,
+                    'winches' => $data['winches'] ?? 'N/A',
+                    'battery' => $data['battery'] ?? false,
+                    'battery_charger' => $data['battery_charger'] ?? false,
+                    'generator' => $data['generator'] ?? false,
+                    'inverter' => $data['inverter'] ?? false,
+                    'television' => $data['television'] ?? false,
+                    'cd_player' => $data['cd_player'] ?? false,
+                    'dvd_player' => $data['dvd_player'] ?? false,
+                    'anchor' => $data['Anchor'] ?? false,
+                    'spray_hood' => $data['spray_hood'] ?? false,
+                    'bimini' => $data['Bimini'] ?? false,
+                    'fenders' => $data['fenders'] ?? 'N/A',
+                    'hours_counter' => $data['hours'] ?? 'N/A',
+                    'cruising_speed' => $data['cruising_speed'] ?? 'N/A',
+                    'max_draft' => $data['max_speed'] ?? 'N/A',
+                    'min_draft' => $data['min_draft'] ?? 'N/A',
+                    'fuel' => $data['fuel'] ?? 'N/A',
+                ]),
+                'updated_at' => now(),
+                'created_at' => now(),
             ];
 
-            foreach ($mapping as $dbCol => $jsonKey) {
-                if (isset($item[$jsonKey])) {
-                    $value = $item[$jsonKey];
-
-                    if (in_array($dbCol, $booleanFields)) {
-                        $data[$dbCol] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
-                    } elseif (in_array($dbCol, ['cabins','heads','passenger_capacity'])) {
-                        $data[$dbCol] = is_numeric($value) ? (int)$value : null;
-                    } elseif (in_array($dbCol, ['price','current_bid'])) {
-                        $data[$dbCol] = is_numeric($value) ? (float)$value : 0;
-                    } else {
-                        $data[$dbCol] = $value;
-                    }
-                } else {
-                    $data[$dbCol] = null;
-                    $summary['defaulted']++;
-                }
-            }
-
-            // Update or create
-            $yacht = Yacht::where('vessel_id', $data['vessel_id'])->first();
-            if ($yacht) {
-                $yacht->update($data);
-                $summary['updated']++;
-                $action = 'Updated';
-            } else {
-                Yacht::create($data);
-                $summary['created']++;
-                $action = 'Created';
-            }
+            Yacht::updateOrCreate(
+                ['vessel_id' => $yachtData['vessel_id']],
+                $yachtData
+            );
 
             $count++;
-
-            // Display a clean table of the yacht details in console
-            $columns = array_keys($data);
-            $values = array_map(fn($v) => $v ?? 'NULL', array_values($data));
-
-            $this->info("{$action} yacht ({$data['name']})");
-            $this->table($columns, [$values]);
+            $this->info("Inserted/Updated yacht: {$yachtData['name']}");
         }
 
         $this->info("Imported/Updated {$count} yachts successfully.");
-        $this->info("Summary Report:");
-        $this->info("New yachts created: {$summary['created']}");
-        $this->info("Existing yachts updated: {$summary['updated']}");
-        $this->info("Fields left NULL: {$summary['defaulted']}");
-
-        return 0;
     }
 }
