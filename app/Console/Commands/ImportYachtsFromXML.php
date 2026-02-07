@@ -34,6 +34,7 @@ class ImportYachtsFromXML extends Command
         $columns = Schema::getColumnListing('yachts');
 
         $map = [
+            'boat_name' => 'name',           // important: required
             'owner_comments' => 'owners_comment',
             'price_on_demand' => 'price',
             'brand' => 'make',
@@ -45,13 +46,15 @@ class ImportYachtsFromXML extends Command
             'hull_material' => 'hull_construction',
             'hull_type' => 'hull_shape',
             'vessel_lying' => 'where',
+            'Anchor' => 'anchor',
+            'Bimini' => 'bimini',
         ];
 
         $boolFields = [
             'flybridge','oven','microwave','fridge','freezer',
             'air_conditioning','generator','inverter','television',
             'cd_player','dvd_player','anchor','spray_hood','bimini',
-            'trailer_included','central_heating','heating'
+            'trailer_included','central_heating','heating','allow_bidding'
         ];
 
         // Counters for summary
@@ -84,7 +87,6 @@ class ImportYachtsFromXML extends Command
                     // Exact match
                     if (in_array($name, $columns)) {
                         $data[$name] = $value;
-                        $this->info("Exact match: XML '{$name}' -> DB '{$name}'");
                         $summary['exact']++;
                         continue;
                     }
@@ -92,7 +94,6 @@ class ImportYachtsFromXML extends Command
                     // Predefined map
                     if (isset($map[$name]) && in_array($map[$name], $columns)) {
                         $data[$map[$name]] = $value;
-                        $this->info("Mapped: XML '{$name}' -> DB '{$map[$name]}'");
                         $summary['mapped']++;
                         continue;
                     }
@@ -110,10 +111,8 @@ class ImportYachtsFromXML extends Command
 
                     if ($closest && $shortest <= 3) {
                         $data[$closest] = $value;
-                        $this->info("Auto-mapped: XML '{$name}' -> DB '{$closest}' (distance {$shortest})");
                         $summary['auto_mapped']++;
                     } else {
-                        $this->warn("Skipped XML field '{$name}' (no suitable DB column found)");
                         $summary['skipped']++;
                     }
                 }
@@ -121,8 +120,12 @@ class ImportYachtsFromXML extends Command
                 // Ensure vessel_id
                 if (!isset($data['vessel_id'])) {
                     $data['vessel_id'] = $data['external_url'] ?? Str::uuid();
-                    $this->info("Generated vessel_id: {$data['vessel_id']}");
                 }
+
+                // Ensure required fields
+                $data['name'] = $data['name'] ?? $data['boat_name'] ?? 'Unnamed Yacht';
+                $data['status'] = $data['status'] ?? 'Draft';
+                $data['allow_bidding'] = $data['allow_bidding'] ?? 0;
 
                 // Normalize booleans
                 foreach ($boolFields as $boolField) {
@@ -140,11 +143,9 @@ class ImportYachtsFromXML extends Command
                         }
                     }
                     $yacht->save();
-                    $this->info("Updated yacht with vessel_id {$data['vessel_id']}");
                     $summary['updated_yachts']++;
                 } else {
                     Yacht::create($data);
-                    $this->info("Created new yacht with vessel_id {$data['vessel_id']}");
                     $summary['created_yachts']++;
                 }
 
