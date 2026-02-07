@@ -33,46 +33,55 @@ class ImportYachtsFromXML extends Command
         $reader->xml($response->body());
 
         $count = 0;
+while ($reader->read()) {
+    if ($reader->nodeType == XMLReader::ELEMENT && $reader->name === 'advert') {
 
-        while ($reader->read()) {
-            if ($reader->nodeType == XMLReader::ELEMENT && $reader->name === 'advert') {
-                
-                $node = $reader->expand();
-                $xml = simplexml_import_dom($node);
+        $node = $reader->expand();
+        if (!$node) {
+            continue; // skip invalid node
+        }
 
-                $data = [];
+        // Create a DOMDocument and import the node properly
+        $doc = new \DOMDocument();
+        $docNode = $doc->importNode($node, true);
+        $doc->appendChild($docNode);
 
-                // Extract all <item name=""> values
-                foreach ($xml->item as $item) {
-                    $name = (string) $item['name'];
-                    $value = (string) $item;
+        $xml = simplexml_import_dom($docNode);
 
-                    if ($name) {
-                        $data[$name] = $value;
-                    }
-                }
+        $data = [];
 
-                // Generate vessel_id if missing
-                if (!isset($data['vessel_id'])) {
-                    $data['vessel_id'] = $data['external_url'] ?? Str::uuid();
-                }
+        // Extract all <item name=""> values
+        foreach ($xml->item as $item) {
+            $name = (string) $item['name'];
+            $value = (string) $item;
 
-                // Map boolean values
-                foreach (['flybridge', 'oven', 'microwave', 'fridge', 'freezer', 'air_conditioning'] as $boolField) {
-                    if (isset($data[$boolField])) {
-                        $data[$boolField] = filter_var($data[$boolField], FILTER_VALIDATE_BOOLEAN);
-                    }
-                }
-
-                // Update or create yacht
-                Yacht::updateOrCreate(
-                    ['vessel_id' => $data['vessel_id']],
-                    $data
-                );
-
-                $count++;
+            if ($name) {
+                $data[$name] = $value;
             }
         }
+
+        // Generate vessel_id if missing
+        if (!isset($data['vessel_id'])) {
+            $data['vessel_id'] = $data['external_url'] ?? \Illuminate\Support\Str::uuid();
+        }
+
+        // Map boolean values
+        foreach (['flybridge','oven','microwave','fridge','freezer','air_conditioning'] as $boolField) {
+            if (isset($data[$boolField])) {
+                $data[$boolField] = filter_var($data[$boolField], FILTER_VALIDATE_BOOLEAN);
+            }
+        }
+
+        // Update or create yacht
+        \App\Models\Yacht::updateOrCreate(
+            ['vessel_id' => $data['vessel_id']],
+            $data
+        );
+
+        $count++;
+    }
+}
+
 
         $reader->close();
 
