@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
 class ImportYachtsFromXML extends Command
 {
     protected $signature = 'yachts:import';
-    protected $description = 'Import yachts from XML safely, filling missing values with defaults and logging all field mappings';
+    protected $description = 'Import yachts from XML safely, filling missing values with correct defaults and logging all field mappings';
 
     public function handle()
     {
@@ -20,7 +20,6 @@ class ImportYachtsFromXML extends Command
         $this->info("Fetching XML feed...");
 
         $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])->get($url);
-
         if (!$response->ok()) {
             $this->error("Failed to fetch XML feed: {$response->status()}");
             return 1;
@@ -33,7 +32,6 @@ class ImportYachtsFromXML extends Command
         $count = 0;
         $columns = Schema::getColumnListing('yachts');
 
-        // Predefined XML -> DB mapping
         $map = [
             'owner_comments' => 'owners_comment',
             'price_on_demand' => 'price',
@@ -56,16 +54,6 @@ class ImportYachtsFromXML extends Command
             'air_conditioning','generator','inverter','television',
             'cd_player','dvd_player','anchor','spray_hood','bimini',
             'trailer_included','central_heating','heating'
-        ];
-
-        $defaultValues = [
-            'string' => 'N/A',
-            'text' => 'N/A',
-            'int' => 0,
-            'tinyint' => 0,
-            'decimal' => 0.0,
-            'enum' => 'Draft',
-            'timestamp' => now()
         ];
 
         $summary = [
@@ -97,7 +85,7 @@ class ImportYachtsFromXML extends Command
 
                     // Exact match
                     if (in_array($name, $columns)) {
-                        $data[$name] = $value ?: $defaultValues['string'];
+                        $data[$name] = $value ?: null;
                         $this->info("Exact match: XML '{$name}' -> DB '{$name}' with value '{$data[$name]}'");
                         $summary['exact']++;
                         continue;
@@ -105,7 +93,7 @@ class ImportYachtsFromXML extends Command
 
                     // Predefined map
                     if (isset($map[$name]) && in_array($map[$name], $columns)) {
-                        $data[$map[$name]] = $value ?: $defaultValues['string'];
+                        $data[$map[$name]] = $value ?: null;
                         $this->info("Mapped: XML '{$name}' -> DB '{$map[$name]}' with value '{$data[$map[$name]]}'");
                         $summary['mapped']++;
                         continue;
@@ -122,7 +110,7 @@ class ImportYachtsFromXML extends Command
                         }
                     }
                     if ($closest && $shortest <= 3) {
-                        $data[$closest] = $value ?: $defaultValues['string'];
+                        $data[$closest] = $value ?: null;
                         $this->info("Auto-mapped: XML '{$name}' -> DB '{$closest}' with value '{$data[$closest]}' (distance {$shortest})");
                         $summary['auto_mapped']++;
                     } else {
@@ -131,23 +119,47 @@ class ImportYachtsFromXML extends Command
                     }
                 }
 
-                // Ensure required NOT NULL fields
+                // Required NOT NULL fields defaults
                 $data['vessel_id'] = $data['vessel_id'] ?? $data['external_url'] ?? Str::uuid();
                 $data['name'] = $data['name'] ?? 'Unnamed Yacht';
                 $data['status'] = $data['status'] ?? 'Draft';
                 $data['allow_bidding'] = $data['allow_bidding'] ?? 0;
                 $data['price'] = $data['price'] ?? 0;
+                $data['user_id'] = $data['user_id'] ?? 0;
 
                 // Normalize booleans
                 foreach ($boolFields as $boolField) {
                     $data[$boolField] = isset($data[$boolField]) ? filter_var($data[$boolField], FILTER_VALIDATE_BOOLEAN) : 0;
                 }
 
-                // Fill other DB columns with default values
+                // Fill other DB columns with safe defaults based on type
                 foreach ($columns as $col) {
                     if (!isset($data[$col])) {
                         $type = Schema::getColumnType('yachts', $col);
-                        $data[$col] = $defaultValues[$type] ?? 'N/A';
+                        switch ($type) {
+                            case 'string':
+                            case 'text':
+                                $data[$col] = 'N/A';
+                                break;
+                            case 'int':
+                            case 'tinyint':
+                            case 'bigint':
+                                $data[$col] = 0;
+                                break;
+                            case 'decimal':
+                            case 'float':
+                                $data[$col] = 0.0;
+                                break;
+                            case 'enum':
+                                $data[$col] = 'Draft';
+                                break;
+                            case 'timestamp':
+                            case 'datetime':
+                                $data[$col] = now();
+                                break;
+                            default:
+                                $data[$col] = 'N/A';
+                        }
                         $this->info("Defaulted field '{$col}' -> '{$data[$col]}'");
                         $summary['defaulted']++;
                     }
