@@ -9,34 +9,115 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('yachts', function (Blueprint $table) {
-            // Core XML / new fields
-            $table->string('external_url')->nullable();
-            $table->string('print_url')->nullable();
-            $table->text('owners_comment')->nullable();
-            $table->text('reg_details')->nullable();
-            $table->text('known_defects')->nullable();
-            $table->string('last_serviced')->nullable();
-            $table->integer('passenger_capacity')->nullable();
-            $table->string('loa')->nullable();
-            $table->string('lwl')->nullable();
-            $table->string('air_draft')->nullable();
-            $table->string('designer')->nullable();
-            $table->string('builder')->nullable();
-            $table->string('where')->nullable();
-            $table->string('hull_construction')->nullable();
-            $table->string('super_structure_colour')->nullable();
-            $table->string('super_structure_construction')->nullable();
-            $table->string('deck_construction')->nullable();
-            $table->string('cockpit_type')->nullable();
-            $table->string('control_type')->nullable();
-            $table->boolean('flybridge')->nullable();
-            $table->boolean('oven')->nullable();
-            $table->boolean('microwave')->nullable();
-            $table->boolean('fridge')->nullable();
-            $table->boolean('freezer')->nullable();
-            $table->boolean('air_conditioning')->nullable();
-            $table->string('stern_thruster')->nullable();
-            $table->string('horse_power')->nullable();
+            
+            if (!Schema::hasColumn('yachts', 'external_url')) {
+                $table->string('external_url')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'print_url')) {
+                $table->string('print_url')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'owners_comment')) {
+                $table->text('owners_comment')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'reg_details')) {
+                $table->text('reg_details')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'known_defects')) {
+                $table->text('known_defects')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'last_serviced')) {
+                $table->string('last_serviced')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'passenger_capacity')) {
+                $table->integer('passenger_capacity')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'loa')) {
+                $table->string('loa')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'lwl')) {
+                $table->string('lwl')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'air_draft')) {
+                $table->string('air_draft')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'designer')) {
+                $table->string('designer')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'builder')) {
+                $table->string('builder')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'where')) {
+                $table->string('where')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'hull_construction')) {
+                $table->string('hull_construction')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'super_structure_colour')) {
+                $table->string('super_structure_colour')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'super_structure_construction')) {
+                $table->string('super_structure_construction')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'deck_construction')) {
+                $table->string('deck_construction')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'cockpit_type')) {
+                $table->string('cockpit_type')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'control_type')) {
+                $table->string('control_type')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'flybridge')) {
+                $table->boolean('flybridge')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'oven')) {
+                $table->boolean('oven')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'microwave')) {
+                $table->boolean('microwave')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'fridge')) {
+                $table->boolean('fridge')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'freezer')) {
+                $table->boolean('freezer')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'air_conditioning')) {
+                $table->boolean('air_conditioning')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'stern_thruster')) {
+                $table->string('stern_thruster')->nullable();
+            }
+
+            if (!Schema::hasColumn('yachts', 'horse_power')) {
+                $table->string('horse_power')->nullable();
+            }
+
         });
     }
 
