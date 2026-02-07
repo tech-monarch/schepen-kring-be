@@ -78,6 +78,12 @@ protected $fillable = [
     'air_conditioning',       // Boolean
     'stern_thruster',         // Stern thruster info
     'horse_power',            // Engine horsepower description
+
+    
+    'control_type','cockpit_type','horse_power','stern_thruster','generator',
+    'inverter','television','cd_player','dvd_player','anchor','spray_hood',
+    'bimini','fenders','hours_counter','cruising_speed','max_draft','min_draft',
+    'central_heating','heating','fuel',
 ];
 
     /**
