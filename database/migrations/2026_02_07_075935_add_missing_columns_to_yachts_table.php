@@ -9,42 +9,113 @@ return new class extends Migration
     public function up(): void
     {
 Schema::table('yachts', function (Blueprint $table) {
-    $table->text('ballast')->nullable();
-    $table->text('bow_thruster')->nullable();
-    $table->text('engine_quantity')->nullable();
-    $table->text('tankage')->nullable();
-    $table->text('litres_per_hour')->nullable();
-    $table->text('gearbox')->nullable();
-    $table->text('cylinders')->nullable();
-    $table->text('propeller_type')->nullable();
-    $table->text('engine_location')->nullable();
-    $table->text('cooling_system')->nullable();
-    $table->text('navigation_lights')->nullable();
-    $table->text('compass')->nullable();
-    $table->text('depth_instrument')->nullable();
-    $table->text('wind_instrument')->nullable();
-    $table->text('autopilot')->nullable();
-    $table->text('gps')->nullable();
-    $table->text('vhf')->nullable();
-    $table->text('plotter')->nullable();
-    $table->text('speed_instrument')->nullable();
-    $table->text('radar')->nullable();
-    $table->text('toilet')->nullable();
-    $table->text('shower')->nullable();
-    $table->text('bath')->nullable();
-    $table->text('life_raft')->nullable();
-    $table->text('epirb')->nullable();
-    $table->text('bilge_pump')->nullable();
-    $table->text('mob_system')->nullable();
-    $table->text('genoa')->nullable();
-    $table->text('spinnaker')->nullable();
-    $table->text('tri_sail')->nullable();
-    $table->text('storm_jib')->nullable();
-    $table->text('main_sail')->nullable();
-    $table->text('winches')->nullable();
-    $table->text('battery')->nullable();
-    $table->text('battery_charger')->nullable();
+    if (!Schema::hasColumn('yachts', 'ballast')) {
+        $table->text('ballast')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'bow_thruster')) {
+        $table->text('bow_thruster')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'engine_quantity')) {
+        $table->text('engine_quantity')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'tankage')) {
+        $table->text('tankage')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'litres_per_hour')) {
+        $table->text('litres_per_hour')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'gearbox')) {
+        $table->text('gearbox')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'cylinders')) {
+        $table->text('cylinders')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'propeller_type')) {
+        $table->text('propeller_type')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'engine_location')) {
+        $table->text('engine_location')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'cooling_system')) {
+        $table->text('cooling_system')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'navigation_lights')) {
+        $table->text('navigation_lights')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'compass')) {
+        $table->text('compass')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'depth_instrument')) {
+        $table->text('depth_instrument')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'wind_instrument')) {
+        $table->text('wind_instrument')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'autopilot')) {
+        $table->text('autopilot')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'gps')) {
+        $table->text('gps')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'vhf')) {
+        $table->text('vhf')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'plotter')) {
+        $table->text('plotter')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'speed_instrument')) {
+        $table->text('speed_instrument')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'radar')) {
+        $table->text('radar')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'toilet')) {
+        $table->text('toilet')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'shower')) {
+        $table->text('shower')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'bath')) {
+        $table->text('bath')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'life_raft')) {
+        $table->text('life_raft')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'epirb')) {
+        $table->text('epirb')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'bilge_pump')) {
+        $table->text('bilge_pump')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'mob_system')) {
+        $table->text('mob_system')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'genoa')) {
+        $table->text('genoa')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'spinnaker')) {
+        $table->text('spinnaker')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'tri_sail')) {
+        $table->text('tri_sail')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'storm_jib')) {
+        $table->text('storm_jib')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'main_sail')) {
+        $table->text('main_sail')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'winches')) {
+        $table->text('winches')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'battery')) {
+        $table->text('battery')->nullable();
+    }
+    if (!Schema::hasColumn('yachts', 'battery_charger')) {
+        $table->text('battery_charger')->nullable();
+    }
 });
+
 
     }
 
