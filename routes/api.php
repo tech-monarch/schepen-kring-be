@@ -60,7 +60,8 @@ Route::post('/test-yacht-update', function(Request $request) {
 });
     // Put this in the Public Routes section
 Route::get('yachts/{id}/available-slots', [BookingController::class, 'getAvailableSlots']);
-
+// Add this line
+Route::get('yachts/{id}/available-dates', [BookingController::class, 'getAvailableDates']);
 // PROTECTED ROUTES (Must be logged in)
 Route::middleware('auth:sanctum')->group(function () {
     

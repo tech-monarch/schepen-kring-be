@@ -46,10 +46,37 @@ class BookingController extends Controller
         $current->addMinutes(15);
     }
 
-    return response()->json($slots);
+    return response()->json(['timeSlots' => $slots]);
 }
 
+public function getAvailableDates(Request $request, $id)
+{
+    $month = $request->query('month');
+    $year = $request->query('year');
+    
+    // Get all availability rules for this yacht to see which days of the week it's open
+    $rules = \DB::table('yacht_availability_rules')
+        ->where('yacht_id', $id)
+        ->pluck('day_of_week')
+        ->toArray();
 
+    $availableDates = [];
+    $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+
+    for ($day = 1; $day <= $daysInMonth; $day++) {
+        $date = \Carbon\Carbon::createFromDate($year, $month, $day);
+        
+        // Check if the yacht has a rule for this day of the week
+        if (in_array($date->dayOfWeek, $rules)) {
+            // Ideally, you'd also check if all slots are taken by bookings here,
+            // but just checking the rules is enough to "un-grey" the calendar.
+            $availableDates[] = $date->toDateString();
+        }
+    }
+
+    // Wrap in the 'availableDates' key that your frontend expects
+    return response()->json(['availableDates' => $availableDates]);
+}
 
 public function storeBooking(Request $request, $id)
 {
