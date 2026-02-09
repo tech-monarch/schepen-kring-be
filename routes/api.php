@@ -129,22 +129,22 @@ Route::post('user/authorizations/{id}/sync', [AuthorizationController::class, 's
 Route::post('yachts/{id}/book', [BookingController::class, 'storeBooking']);
 
 
-    // ACTIVITY LOGS - OPEN TO ALL AUTHENTICATED USERS
-    Route::prefix('activity-logs')->group(function () {
-        Route::get('/', [ActivityLogController::class, 'index']); // All users can see logs
-        Route::get('/my-activity', [ActivityLogController::class, 'myActivity']); // User's own logs
-        Route::get('/user/{userId}', [ActivityLogController::class, 'userActivity']); // Specific user's logs
-        Route::get('/stats', [ActivityLogController::class, 'stats']); // Admin only
-        Route::delete('/clear-old', [ActivityLogController::class, 'clearOldLogs']); // Admin only
-    });
-
-    // NOTIFICATIONS - USER'S OWN NOTIFICATIONS
+    // ======================= NOTIFICATION ROUTES =======================
     Route::prefix('notifications')->group(function () {
         Route::get('/', [NotificationController::class, 'index']);
         Route::get('/unread-count', [NotificationController::class, 'getUnreadCount']);
         Route::post('/{id}/read', [NotificationController::class, 'markAsRead']);
         Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::delete('/{id}', [NotificationController::class, 'delete']);
+    });
+
+    // ======================= ACTIVITY LOG ROUTES =======================
+    Route::prefix('activity-logs')->group(function () {
+        Route::get('/', [ActivityLogController::class, 'index']);
+        Route::get('/stats', [ActivityLogController::class, 'stats']);
+        Route::get('/user/{userId}', [ActivityLogController::class, 'userActivity']);
+        Route::get('/my-activity', [ActivityLogController::class, 'myActivity']);
+        Route::delete('/clear-old', [ActivityLogController::class, 'clearOldLogs']);
     });
 });
 
