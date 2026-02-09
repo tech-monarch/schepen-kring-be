@@ -53,42 +53,110 @@ class BlogController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created blog.
-     */
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'content' => 'required|string',
-            'author' => 'nullable|string|max:255',
-            'excerpt' => 'nullable|string|max:500',
-            'status' => 'required|in:draft,published',
-            'featured_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
+// Update the store method to use proper form data handling
+public function store(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'title' => 'required|string|max:255',
+        'content' => 'required|string',
+        'author' => 'nullable|string|max:255',
+        'excerpt' => 'nullable|string|max:500',
+        'status' => 'required|in:draft,published',
+    ]);
 
+    if ($validator->fails()) {
+        return response()->json([
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $blogData = $request->only(['title', 'content', 'author', 'excerpt', 'status']);
+    $blogData['slug'] = Str::slug($request->title);
+    $blogData['user_id'] = auth()->id();
+    
+    // Handle file upload separately
+    if ($request->hasFile('featured_image')) {
+        $validator = Validator::make($request->all(), [
+            'featured_image' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+        
         if ($validator->fails()) {
             return response()->json([
                 'errors' => $validator->errors()
             ], 422);
         }
-
-        $blogData = $request->only(['title', 'content', 'author', 'excerpt', 'status']);
-        $blogData['slug'] = Str::slug($request->title);
-        $blogData['user_id'] = auth()->id();
         
-        if ($request->hasFile('featured_image')) {
-            $path = $request->file('featured_image')->store('blog_images', 'public');
-            $blogData['featured_image'] = $path;
-        }
-
-        $blog = Blog::create($blogData);
-
-        return response()->json([
-            'message' => 'Blog created successfully',
-            'data' => $blog->load('user')
-        ], 201);
+        $path = $request->file('featured_image')->store('blog_images', 'public');
+        $blogData['featured_image'] = $path;
     }
+
+    $blog = Blog::create($blogData);
+
+    return response()->json([
+        'message' => 'Blog created successfully',
+        'data' => $blog->load('user')
+    ], 201);
+}
+
+// Also update the update method similarly
+public function update(Request $request, $id)
+{
+    $blog = Blog::find($id);
+    
+    if (!$blog) {
+        return response()->json([
+            'message' => 'Blog not found'
+        ], 404);
+    }
+
+    $validator = Validator::make($request->all(), [
+        'title' => 'sometimes|string|max:255',
+        'content' => 'sometimes|string',
+        'author' => 'nullable|string|max:255',
+        'excerpt' => 'nullable|string|max:500',
+        'status' => 'sometimes|in:draft,published',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $blogData = $request->only(['title', 'content', 'author', 'excerpt', 'status']);
+    
+    if ($request->has('title')) {
+        $blogData['slug'] = Str::slug($request->title);
+    }
+    
+    // Handle file upload separately
+    if ($request->hasFile('featured_image')) {
+        $validator = Validator::make($request->all(), [
+            'featured_image' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        // Delete old image if exists
+        if ($blog->featured_image) {
+            Storage::disk('public')->delete($blog->featured_image);
+        }
+        
+        $path = $request->file('featured_image')->store('blog_images', 'public');
+        $blogData['featured_image'] = $path;
+    }
+
+    $blog->update($blogData);
+
+    return response()->json([
+        'message' => 'Blog updated successfully',
+        'data' => $blog->load('user')
+    ]);
+}
 
     /**
      * Display the specified blog.
@@ -111,57 +179,6 @@ class BlogController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified blog.
-     */
-    public function update(Request $request, $id)
-    {
-        $blog = Blog::find($id);
-        
-        if (!$blog) {
-            return response()->json([
-                'message' => 'Blog not found'
-            ], 404);
-        }
-
-        $validator = Validator::make($request->all(), [
-            'title' => 'sometimes|string|max:255',
-            'content' => 'sometimes|string',
-            'author' => 'nullable|string|max:255',
-            'excerpt' => 'nullable|string|max:500',
-            'status' => 'sometimes|in:draft,published',
-            'featured_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $blogData = $request->only(['title', 'content', 'author', 'excerpt', 'status']);
-        
-        if ($request->has('title')) {
-            $blogData['slug'] = Str::slug($request->title);
-        }
-        
-        if ($request->hasFile('featured_image')) {
-            // Delete old image if exists
-            if ($blog->featured_image) {
-                Storage::disk('public')->delete($blog->featured_image);
-            }
-            
-            $path = $request->file('featured_image')->store('blog_images', 'public');
-            $blogData['featured_image'] = $path;
-        }
-
-        $blog->update($blogData);
-
-        return response()->json([
-            'message' => 'Blog updated successfully',
-            'data' => $blog->load('user')
-        ]);
-    }
 
     /**
      * Remove the specified blog.
