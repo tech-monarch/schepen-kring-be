@@ -34,6 +34,8 @@ protected $fillable = [
     'address',
     'city',
     'state',
+        'postcode',
+        'country',
 ];
 
     public function tasks() {
