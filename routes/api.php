@@ -152,3 +152,4 @@ Route::get('/public/blogs', [BlogController::class, 'index']);
 Route::get('/public/blogs/{id}', [BlogController::class, 'show']);
 Route::get('/public/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
 Route::get('/public/blogs/featured', [BlogController::class, 'featured']);
+Route::post('/public/blogs/{id}/view', [BlogController::class, 'incrementViews']); // Add this

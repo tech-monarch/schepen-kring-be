@@ -158,6 +158,27 @@ public function update(Request $request, $id)
     ]);
 }
 
+/**
+ * Increment blog views.
+ */
+public function incrementViews($id)
+{
+    $blog = Blog::find($id);
+    
+    if (!$blog) {
+        return response()->json([
+            'message' => 'Blog not found'
+        ], 404);
+    }
+    
+    $blog->increment('views');
+    
+    return response()->json([
+        'message' => 'View count incremented',
+        'views' => $blog->views
+    ]);
+}
+
     /**
      * Display the specified blog.
      */
