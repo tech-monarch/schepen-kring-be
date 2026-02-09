@@ -78,24 +78,6 @@ class DatabaseSeeder extends Seeder
         $clientUser->syncRoles($customer);
 
         // 4. Create a Sample Yacht & Bid safely
-        $yacht = Yacht::firstOrCreate(
-            ['vessel_id' => 'Y-772'],
-            [
-                'name' => 'M/Y Sovereign',
-                'status' => 'For Bid',
-                'price' => 12500000.00,
-                'current_bid' => 13000000.00,
-                'year' => '2024',
-                'length' => '55m'
-            ]
-        );
 
-        Bid::firstOrCreate(
-            ['yacht_id' => $yacht->id, 'user_id' => $clientUser->id],
-            [
-                'amount' => 13000000.00,
-                'status' => 'active'
-            ]
-        );
     }
 }
