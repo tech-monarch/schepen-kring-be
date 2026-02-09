@@ -18,6 +18,15 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // 2. Required for Sanctum authentication
         $middleware->statefulApi();
+        // Add your middleware here
+        $middleware->api(append: [
+            \App\Http\Middleware\LogApiRequests::class,
+        ]);
+        
+        // Or you can add it to specific routes using aliases
+        $middleware->alias([
+            'log.api' => \App\Http\Middleware\LogApiRequests::class,
+        ]);
 
         // 3. Register your Role/Permission aliases
         $middleware->alias([

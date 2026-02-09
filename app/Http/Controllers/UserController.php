@@ -7,9 +7,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\LogsActivity;
 
 class UserController extends Controller
 {
+    
+    use LogsActivity;
     /**
      * Display the Global Directory of users.
      */
@@ -134,31 +137,51 @@ public function destroy(User $user)
         ]);
     }
 
-    public function login(Request $request)
-    {
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
-        if (!Auth::attempt($credentials)) {
-            return response()->json([
-                'message' => 'Identity could not be verified. Check credentials.'
-            ], 401);
-        }
-
-        $user = Auth::user();
-        $token = $user->createToken('terminal_access_token')->plainTextToken;
+public function login(Request $request)
+{
+    $credentials = $request->validate([
+        'email' => 'required|email',
+        'password' => 'required',
+    ]);
+    
+    if (!Auth::attempt($credentials)) {
+        // Log failed login attempt
+        ActivityLog::log(
+            'auth',
+            'login_failed',
+            "Failed login attempt for email: {$request->email}",
+            null,
+            ['email' => $request->email, 'ip' => $request->ip()]
+        );
+        
         return response()->json([
-            'token' => $token,
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'userType' => $user->role, 
-            'status' => $user->status,
-            'access_level' => $user->access_level,
-            'permissions' => $user->getPermissionNames(), 
-        ]);
+            'message' => 'Identity could not be verified. Check credentials.'
+        ], 401);
     }
+
+    $user = Auth::user();
+    
+    // Log successful login
+    $this->logActivity(
+        'login',
+        "User {$user->name} logged in successfully",
+        ['user_id' => $user->id, 'email' => $user->email],
+        true // Notify admins
+    );
+
+    $token = $user->createToken('terminal_access_token')->plainTextToken;
+    
+    return response()->json([
+        'token' => $token,
+        'id' => $user->id,
+        'name' => $user->name,
+        'email' => $user->email,
+        'userType' => $user->role, 
+        'status' => $user->status,
+        'access_level' => $user->access_level,
+        'permissions' => $user->getPermissionNames(),
+    ]);
+}
 
     public function getAllPermissions() {
         return response()->json(\Spatie\Permission\Models\Permission::all());
@@ -250,10 +273,18 @@ public function registerPartner(Request $request)
  */
 public function impersonate(User $user)
 {
-    // Security: Only Admins can impersonate [cite: 84]
+    // Security: Only Admins can impersonate
     if (Auth::user()->role !== 'Admin') {
         return response()->json(['message' => 'Insufficient clearance for identity assumption.'], 403);
     }
+
+    // Log impersonation
+    $this->logActivity(
+        'user_impersonated',
+        "Admin {auth()->user()->name} impersonated user {$user->name}",
+        ['admin_id' => Auth::id(), 'target_user_id' => $user->id],
+        true
+    );
 
     // Create a new token for the target user
     $token = $user->createToken('impersonation_token')->plainTextToken;

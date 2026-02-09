@@ -15,6 +15,8 @@ use App\Http\Controllers\AuthorizationController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\PagePermissionController;
 use App\Http\Controllers\BlogController;
+use App\Http\Controllers\ActivityLogController; // Add this
+use App\Http\Controllers\NotificationController; // Add this
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -125,6 +127,25 @@ Route::post('user/authorizations/{id}/sync', [AuthorizationController::class, 's
 
 // Put this in the Protected Routes section
 Route::post('yachts/{id}/book', [BookingController::class, 'storeBooking']);
+
+
+
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('/unread-count', [NotificationController::class, 'getUnreadCount']);
+        Route::post('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
+        Route::delete('/{id}', [NotificationController::class, 'delete']);
+    });
+
+    
+    // ACTIVITY LOGS (Admin only)
+    Route::prefix('activity-logs')->group(function () {
+        Route::get('/', [ActivityLogController::class, 'index']);
+        Route::get('/stats', [ActivityLogController::class, 'stats']);
+        Route::get('/user/{userId}', [ActivityLogController::class, 'userActivity']);
+        Route::delete('/clear-old', [ActivityLogController::class, 'clearOldLogs']);
+    });
 });
 
 Route::middleware('auth:sanctum')->group(function () {

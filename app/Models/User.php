@@ -80,4 +80,33 @@ public function getPagePermission($pageKey)
     
     return $permission ? $permission->permission_value : 0;
 }
+
+
+
+    // NEW: Activity logs relationship
+    public function activityLogs()
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
+
+    // NEW: Notifications relationship
+    public function notifications()
+    {
+        return $this->belongsToMany(Notification::class, 'user_notifications')
+                    ->withPivot('read', 'read_at')
+                    ->withTimestamps();
+    }
+
+    // NEW: Get unread notifications
+    public function unreadNotifications()
+    {
+        return $this->notifications()->wherePivot('read', false);
+    }
+
+        // NEW: Get unread notifications count
+    public function getUnreadNotificationsCountAttribute()
+    {
+        return $this->unreadNotifications()->count();
+    }
+
 }
