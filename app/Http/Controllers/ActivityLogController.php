@@ -11,16 +11,40 @@ class ActivityLogController extends Controller
 {
     public function index(Request $request)
     {
-        // Check permission
-        if (Auth::user()->role !== 'Admin' && !Auth::user()->hasPermissionTo('view activity logs')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
+        // NO PERMISSION CHECK - Anyone authenticated can view logs
+        // But we'll filter by user if not admin
+        $user = Auth::user();
         $query = ActivityLog::with('user')
             ->orderBy('created_at', 'desc');
 
+        // If not admin, only show their own logs
+        if ($user->role !== 'Admin') {
+            $query->where('user_id', $user->id);
+        }
+
         // Apply filters
-        $query = $query->filter($request->all());
+        if ($request->has('user_id')) {
+            // Only admin can filter by other users
+            if ($user->role === 'Admin') {
+                $query->where('user_id', $request->user_id);
+            }
+        }
+
+        if ($request->has('log_type')) {
+            $query->where('log_type', $request->log_type);
+        }
+
+        if ($request->has('action')) {
+            $query->where('action', $request->action);
+        }
+
+        if ($request->has('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->has('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
 
         $perPage = $request->get('per_page', 50);
         $logs = $query->paginate($perPage);
@@ -38,9 +62,9 @@ class ActivityLogController extends Controller
 
     public function stats(Request $request)
     {
-        // Check permission
+        // Still restrict stats to Admin only (more sensitive)
         if (Auth::user()->role !== 'Admin') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
         }
 
         // Last 30 days statistics
@@ -85,9 +109,12 @@ class ActivityLogController extends Controller
 
     public function userActivity($userId)
     {
-        // Check permission - only admin or the user themselves
-        if (Auth::user()->role !== 'Admin' && Auth::id() != $userId) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $currentUser = Auth::user();
+        
+        // Users can only see their own activity logs
+        // Admin can see anyone's logs
+        if ($currentUser->role !== 'Admin' && $currentUser->id != $userId) {
+            return response()->json(['message' => 'You can only view your own activity logs'], 403);
         }
 
         $activities = ActivityLog::where('user_id', $userId)
@@ -98,11 +125,33 @@ class ActivityLogController extends Controller
         return response()->json($activities);
     }
 
+    public function myActivity(Request $request)
+    {
+        // Simple endpoint for users to see only their own logs
+        $user = Auth::user();
+        
+        $query = ActivityLog::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc');
+
+        if ($request->has('log_type')) {
+            $query->where('log_type', $request->log_type);
+        }
+
+        if ($request->has('action')) {
+            $query->where('action', $request->action);
+        }
+
+        $perPage = $request->get('per_page', 20);
+        $logs = $query->paginate($perPage);
+
+        return response()->json($logs);
+    }
+
     public function clearOldLogs()
     {
         // Only admins can clear logs
         if (Auth::user()->role !== 'Admin') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
         }
 
         // Delete logs older than 90 days

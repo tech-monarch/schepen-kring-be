@@ -13,6 +13,7 @@ class NotificationController extends Controller
     {
         $user = Auth::user();
         
+        // Users can only see their own notifications
         $query = $user->notifications()
             ->with('notification')
             ->orderBy('user_notifications.created_at', 'desc');
@@ -20,13 +21,6 @@ class NotificationController extends Controller
         // Filter by read status
         if ($request->has('read')) {
             $query->where('read', filter_var($request->read, FILTER_VALIDATE_BOOLEAN));
-        }
-
-        // Filter by type
-        if ($request->has('type')) {
-            $query->whereHas('notification', function($q) use ($request) {
-                $q->where('type', $request->type);
-            });
         }
 
         $perPage = $request->get('per_page', 20);
@@ -46,6 +40,7 @@ class NotificationController extends Controller
 
     public function markAsRead($id)
     {
+        // User can only mark their own notifications as read
         $userNotification = UserNotification::where('user_id', Auth::id())
             ->where('id', $id)
             ->firstOrFail();
@@ -59,6 +54,7 @@ class NotificationController extends Controller
 
     public function markAllAsRead()
     {
+        // User can only mark their own notifications as read
         UserNotification::where('user_id', Auth::id())
             ->where('read', false)
             ->update([
@@ -82,6 +78,7 @@ class NotificationController extends Controller
 
     public function delete($id)
     {
+        // User can only delete their own notifications
         $userNotification = UserNotification::where('user_id', Auth::id())
             ->where('id', $id)
             ->firstOrFail();

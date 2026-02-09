@@ -9,6 +9,8 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\LogsActivity;
 
+use App\Models\ActivityLog;
+
 class UserController extends Controller
 {
     
