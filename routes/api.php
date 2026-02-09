@@ -118,6 +118,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // PROFILE
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/update', [ProfileController::class, 'update']);
+    Route::post('/profile/change-password', [ProfileController::class, 'changePassword']);
 
     
     // New Authorization Endpoints
