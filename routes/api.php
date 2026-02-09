@@ -14,6 +14,7 @@ use App\Http\Controllers\QuickAuthController;
 use App\Http\Controllers\AuthorizationController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\PagePermissionController;
+use App\Http\Controllers\BlogController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -134,3 +135,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users/{user}/page-permissions/bulk-update', [PagePermissionController::class, 'bulkUpdate']);
     Route::post('/users/{user}/page-permissions/reset', [PagePermissionController::class, 'resetPermissions']);
 });
+
+// Blog routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/blogs', [BlogController::class, 'index']);
+    Route::post('/blogs', [BlogController::class, 'store']);
+    Route::get('/blogs/{id}', [BlogController::class, 'show']);
+    Route::put('/blogs/{id}', [BlogController::class, 'update']);
+    Route::delete('/blogs/{id}', [BlogController::class, 'destroy']);
+    Route::get('/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
+    Route::get('/blogs/featured', [BlogController::class, 'featured']);
+});
+
+// Public blog routes (for reading)
+Route::get('/public/blogs', [BlogController::class, 'index']);
+Route::get('/public/blogs/{id}', [BlogController::class, 'show']);
+Route::get('/public/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
+Route::get('/public/blogs/featured', [BlogController::class, 'featured']);
