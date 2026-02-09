@@ -62,49 +62,87 @@ class ActivityLogController extends Controller
 
     public function stats(Request $request)
     {
-        // Still restrict stats to Admin only (more sensitive)
-        if (Auth::user()->role !== 'Admin') {
-            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
+        try {
+            // Only admins can see stats
+            $user = Auth::user();
+            if ($user->role !== 'Admin') {
+                return response()->json([
+                    'message' => 'Unauthorized. Admin access required.'
+                ], 403);
+            }
+
+            // Default to last 7 days if no date range specified
+            $days = $request->get('days', 7);
+            
+            // Daily stats for the specified period
+            $dailyStats = ActivityLog::select([
+                    DB::raw('DATE(created_at) as date'),
+                    DB::raw('COUNT(*) as total_actions'),
+                    DB::raw('COUNT(DISTINCT user_id) as unique_users')
+                ])
+                ->whereDate('created_at', '>=', now()->subDays($days))
+                ->groupBy(DB::raw('DATE(created_at)'))
+                ->orderBy('date', 'desc')
+                ->get();
+
+            // Top actions
+            $topActions = ActivityLog::select([
+                    'action',
+                    DB::raw('COUNT(*) as count')
+                ])
+                ->groupBy('action')
+                ->orderBy('count', 'desc')
+                ->limit(10)
+                ->get();
+
+            // Top users by activity
+            $topUsers = ActivityLog::select([
+                    'user_id',
+                    DB::raw('COUNT(*) as count')
+                ])
+                ->whereNotNull('user_id')
+                ->groupBy('user_id')
+                ->orderBy('count', 'desc')
+                ->limit(10)
+                ->with('user:id,name,email,role')
+                ->get();
+
+            // Activity by type
+            $activityByType = ActivityLog::select([
+                    'log_type',
+                    DB::raw('COUNT(*) as count')
+                ])
+                ->groupBy('log_type')
+                ->orderBy('count', 'desc')
+                ->get();
+
+            // Recent activity
+            $recentActivity = ActivityLog::with('user:id,name')
+                ->orderBy('created_at', 'desc')
+                ->limit(5)
+                ->get();
+
+            return response()->json([
+                'daily_stats' => $dailyStats,
+                'top_actions' => $topActions,
+                'top_users' => $topUsers,
+                'activity_by_type' => $activityByType,
+                'recent_activity' => $recentActivity,
+                'summary' => [
+                    'total_logs' => ActivityLog::count(),
+                    'total_users' => ActivityLog::whereNotNull('user_id')->distinct('user_id')->count(),
+                    'today_logs' => ActivityLog::whereDate('created_at', today())->count(),
+                    'yesterday_logs' => ActivityLog::whereDate('created_at', today()->subDay())->count(),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Stats Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error fetching stats',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // Last 30 days statistics
-        $stats = ActivityLog::select([
-                DB::raw('DATE(created_at) as date'),
-                DB::raw('COUNT(*) as total_actions'),
-                DB::raw('COUNT(DISTINCT user_id) as unique_users')
-            ])
-            ->whereDate('created_at', '>=', now()->subDays(30))
-            ->groupBy(DB::raw('DATE(created_at)'))
-            ->orderBy('date', 'desc')
-            ->get();
-
-        // Top 10 actions
-        $topActions = ActivityLog::select([
-                'action',
-                DB::raw('COUNT(*) as count')
-            ])
-            ->groupBy('action')
-            ->orderBy('count', 'desc')
-            ->limit(10)
-            ->get();
-
-        // Top 10 users by activity
-        $topUsers = ActivityLog::select([
-                'user_id',
-                DB::raw('COUNT(*) as count')
-            ])
-            ->whereNotNull('user_id')
-            ->groupBy('user_id')
-            ->orderBy('count', 'desc')
-            ->limit(10)
-            ->with('user:id,name,email,role')
-            ->get();
-
-        return response()->json([
-            'daily_stats' => $stats,
-            'top_actions' => $topActions,
-            'top_users' => $topUsers
-        ]);
     }
 
     public function userActivity($userId)
