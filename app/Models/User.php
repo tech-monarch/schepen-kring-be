@@ -62,4 +62,22 @@ protected $fillable = [
             'password' => 'hashed',
         ];
     }
+
+    // Add this relationship to your existing User model
+public function pagePermissions()
+{
+    return $this->hasMany(UserPagePermission::class);
+}
+
+// Add this method to get permission value for a page
+public function getPagePermission($pageKey)
+{
+    $permission = $this->pagePermissions()
+        ->whereHas('page', function($query) use ($pageKey) {
+            $query->where('page_key', $pageKey);
+        })
+        ->first();
+    
+    return $permission ? $permission->permission_value : 0;
+}
 }

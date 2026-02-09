@@ -13,7 +13,7 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\QuickAuthController;
 use App\Http\Controllers\AuthorizationController;
 use App\Http\Controllers\BookingController;
-
+use App\Http\Controllers\PagePermissionController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -100,9 +100,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // USER MANAGEMENT
     Route::middleware('permission:manage users')->group(function () {
-        Route::get('permissions', [UserController::class, 'getAllPermissions']);
-        Route::get('roles', [UserController::class, 'getAllRoles']);
-        Route::apiResource('users', UserController::class);
+        // Route::get('permissions', [UserController::class, 'getAllPermissions']);
+        // Route::get('roles', [UserController::class, 'getAllRoles']);
+        // Route::apiResource('users', UserController::class);
 
 
         // ADD THIS LINE [cite: 148]
@@ -124,4 +124,13 @@ Route::post('user/authorizations/{id}/sync', [AuthorizationController::class, 's
 
 // Put this in the Protected Routes section
 Route::post('yachts/{id}/book', [BookingController::class, 'storeBooking']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Page permissions routes
+    Route::get('/page-permissions', [PagePermissionController::class, 'index']);
+    Route::get('/users/{user}/page-permissions', [PagePermissionController::class, 'getUserPermissions']);
+    Route::post('/users/{user}/page-permissions/update', [PagePermissionController::class, 'updatePermission']);
+    Route::post('/users/{user}/page-permissions/bulk-update', [PagePermissionController::class, 'bulkUpdate']);
+    Route::post('/users/{user}/page-permissions/reset', [PagePermissionController::class, 'resetPermissions']);
 });
