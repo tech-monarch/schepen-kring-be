@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
+
 
 class YachtController extends Controller {
 
@@ -21,6 +23,18 @@ public function index(): JsonResponse {
         ->orderBy('boat_name', 'asc')
         ->get());
 }
+
+    public function partnerIndex(): JsonResponse {
+        $user = Auth::user();
+        
+        return response()->json(
+            Yacht::with(['images', 'availabilityRules'])
+                ->where('user_id', $user->id)
+                ->orderBy('boat_name', 'asc')
+                ->get()
+        );
+    }
+
 
     public function store(Request $request): JsonResponse {
         return $this->saveYacht($request);
