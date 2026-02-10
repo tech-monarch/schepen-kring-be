@@ -18,22 +18,23 @@ use Illuminate\Support\Facades\Auth;
 class YachtController extends Controller {
 
 public function index(): JsonResponse {
-    // Use boat_name instead of name for ordering
+    // Fetch all yachts except drafts for public access
     return response()->json(Yacht::with(['images', 'availabilityRules'])
+        ->where('status', '!=', 'draft')
         ->orderBy('boat_name', 'asc')
         ->get());
 }
 
-    public function partnerIndex(): JsonResponse {
-        $user = Auth::user();
-        
-        return response()->json(
-            Yacht::with(['images', 'availabilityRules'])
-                ->where('user_id', $user->id)
-                ->orderBy('boat_name', 'asc')
-                ->get()
-        );
-    }
+public function partnerIndex(): JsonResponse {
+    $user = Auth::user();
+    
+    return response()->json(
+        Yacht::with(['images', 'availabilityRules'])
+            ->where('user_id', $user->id)
+            ->orderBy('boat_name', 'asc')
+            ->get()
+    );
+}
 
 
     public function store(Request $request): JsonResponse {
