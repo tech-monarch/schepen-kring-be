@@ -17,6 +17,7 @@ use App\Http\Controllers\PagePermissionController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\ActivityLogController; // Add this
 use App\Http\Controllers\NotificationController; // Add this
+use App\Http\Controllers\FaqController; // Add this
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -176,3 +177,23 @@ Route::get('/public/blogs/{id}', [BlogController::class, 'show']);
 Route::get('/public/blogs/slug/{slug}', [BlogController::class, 'showBySlug']);
 Route::get('/public/blogs/featured', [BlogController::class, 'featured']);
 Route::post('/public/blogs/{id}/view', [BlogController::class, 'incrementViews']); // Add this
+
+
+// Add to your existing routes
+
+// Public FAQ routes
+Route::get('/faqs', [FaqController::class, 'index']);
+Route::get('/faqs/{id}', [FaqController::class, 'show']);
+Route::post('/faqs/ask-gemini', [FaqController::class, 'askGemini']);
+Route::get('/faqs/stats', [FaqController::class, 'stats']);
+Route::post('/faqs/{id}/rate-helpful', [FaqController::class, 'rateHelpful']);
+Route::post('/faqs/{id}/rate-not-helpful', [FaqController::class, 'rateNotHelpful']);
+
+// Protected FAQ routes (Admin only)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/faqs', [FaqController::class, 'store']);
+    Route::put('/faqs/{id}', [FaqController::class, 'update']);
+    Route::delete('/faqs/{id}', [FaqController::class, 'destroy']);
+    Route::post('/faqs/train-gemini', [FaqController::class, 'trainGemini']);
+    Route::get('/faqs/training-status', [FaqController::class, 'getTrainingStatus']);
+});
