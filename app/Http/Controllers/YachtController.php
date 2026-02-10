@@ -18,9 +18,8 @@ use Illuminate\Support\Facades\Auth;
 class YachtController extends Controller {
 
 public function index(): JsonResponse {
-    // Fetch all yachts except drafts for public access
+    // Use boat_name instead of name for ordering
     return response()->json(Yacht::with(['images', 'availabilityRules'])
-        ->where('status', '!=', 'draft')
         ->orderBy('boat_name', 'asc')
         ->get());
 }
