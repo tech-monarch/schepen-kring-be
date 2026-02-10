@@ -222,10 +222,14 @@ Route::middleware('auth:sanctum')->group(function () {
 // System Log routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('system-logs')->group(function () {
-        Route::get('/', [SystemLogController::class, 'index']);
-        Route::get('/summary', [SystemLogController::class, 'summary']);
+        // Route::get('/', [SystemLogController::class, 'index']);
+        // Route::get('/summary', [SystemLogController::class, 'summary']);
         Route::get('/export', [SystemLogController::class, 'export']);
         Route::get('/user/{userId}', [SystemLogController::class, 'userActivity']);
         Route::get('/{id}', [SystemLogController::class, 'show']);
     });
 });
+
+// Make it public:
+Route::get('/system-logs', [SystemLogController::class, 'index']);
+Route::get('/system-logs/summary', [SystemLogController::class, 'summary']);
