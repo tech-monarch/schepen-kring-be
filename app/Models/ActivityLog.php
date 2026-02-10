@@ -2,69 +2,74 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ActivityLog extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'log_type',
         'user_id',
+        'entity_type',
+        'entity_id',
+        'entity_name',
         'action',
         'description',
+        'severity',
         'ip_address',
         'user_agent',
+        'old_data',
+        'new_data',
         'metadata'
     ];
 
     protected $casts = [
-        'metadata' => 'array'
+        'old_data' => 'array',
+        'new_data' => 'array',
+        'metadata' => 'array',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
 
-    public function user(): BelongsTo
+    /**
+     * Get the user that performed the action
+     */
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Helper method to log activities
-    public static function log($logType, $action, $description, $userId = null, $metadata = []): self
+    /**
+     * Scope for severity filter
+     */
+    public function scopeOfSeverity($query, $severity)
     {
-        $request = request();
-        
-        return self::create([
-            'log_type' => $logType,
-            'user_id' => $userId ?? auth()->id(),
-            'action' => $action,
-            'description' => $description,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'metadata' => $metadata
-        ]);
+        return $query->where('severity', $severity);
     }
 
-    // Scope for filtering
-    public function scopeFilter($query, $filters)
+    /**
+     * Scope for entity type filter
+     */
+    public function scopeOfEntityType($query, $entityType)
     {
-        if (isset($filters['user_id'])) {
-            $query->where('user_id', $filters['user_id']);
-        }
-        
-        if (isset($filters['log_type'])) {
-            $query->where('log_type', $filters['log_type']);
-        }
-        
-        if (isset($filters['action'])) {
-            $query->where('action', $filters['action']);
-        }
-        
-        if (isset($filters['date_from'])) {
-            $query->whereDate('created_at', '>=', $filters['date_from']);
-        }
-        
-        if (isset($filters['date_to'])) {
-            $query->whereDate('created_at', '<=', $filters['date_to']);
-        }
-        
-        return $query;
+        return $query->where('entity_type', $entityType);
+    }
+
+    /**
+     * Scope for date range
+     */
+    public function scopeDateRange($query, $startDate, $endDate = null)
+    {
+        $endDate = $endDate ?? now();
+        return $query->whereBetween('created_at', [$startDate, $endDate]);
+    }
+
+    /**
+     * Scope for user activity
+     */
+    public function scopeForUser($query, $userId)
+    {
+        return $query->where('user_id', $userId);
     }
 }

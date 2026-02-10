@@ -4,199 +4,241 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class ActivityLogController extends Controller
 {
-    public function index(Request $request)
-    {
-        // NO PERMISSION CHECK - Anyone authenticated can view logs
-        // But we'll filter by user if not admin
-        $user = Auth::user();
-        $query = ActivityLog::with('user')
-            ->orderBy('created_at', 'desc');
-
-        // If not admin, only show their own logs
-        if ($user->role !== 'Admin') {
-            $query->where('user_id', $user->id);
-        }
-
-        // Apply filters
-        if ($request->has('user_id')) {
-            // Only admin can filter by other users
-            if ($user->role === 'Admin') {
-                $query->where('user_id', $request->user_id);
-            }
-        }
-
-        if ($request->has('log_type')) {
-            $query->where('log_type', $request->log_type);
-        }
-
-        if ($request->has('action')) {
-            $query->where('action', $request->action);
-        }
-
-        if ($request->has('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-
-        if ($request->has('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
-
-        $perPage = $request->get('per_page', 50);
-        $logs = $query->paginate($perPage);
-
-        return response()->json([
-            'data' => $logs->items(),
-            'meta' => [
-                'current_page' => $logs->currentPage(),
-                'last_page' => $logs->lastPage(),
-                'per_page' => $logs->perPage(),
-                'total' => $logs->total(),
-            ]
-        ]);
-    }
-
-    public function stats(Request $request)
+    /**
+     * Get all activity logs with filters
+     */
+    public function index(Request $request): JsonResponse
     {
         try {
-            // Only admins can see stats
-            $user = Auth::user();
-            if ($user->role !== 'Admin') {
-                return response()->json([
-                    'message' => 'Unauthorized. Admin access required.'
-                ], 403);
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
             }
 
-            // Default to last 7 days if no date range specified
-            $days = $request->get('days', 7);
-            
-            // Daily stats for the specified period
-            $dailyStats = ActivityLog::select([
-                    DB::raw('DATE(created_at) as date'),
-                    DB::raw('COUNT(*) as total_actions'),
-                    DB::raw('COUNT(DISTINCT user_id) as unique_users')
-                ])
-                ->whereDate('created_at', '>=', now()->subDays($days))
-                ->groupBy(DB::raw('DATE(created_at)'))
-                ->orderBy('date', 'desc')
-                ->get();
+            $query = ActivityLog::with(['user:id,name,email,role'])
+                ->orderBy('created_at', 'desc');
 
-            // Top actions
-            $topActions = ActivityLog::select([
-                    'action',
-                    DB::raw('COUNT(*) as count')
-                ])
-                ->groupBy('action')
-                ->orderBy('count', 'desc')
-                ->limit(10)
-                ->get();
+            // Apply filters
+            if ($request->has('severity')) {
+                $query->whereIn('severity', explode(',', $request->input('severity')));
+            }
 
-            // Top users by activity
-            $topUsers = ActivityLog::select([
-                    'user_id',
-                    DB::raw('COUNT(*) as count')
-                ])
-                ->whereNotNull('user_id')
-                ->groupBy('user_id')
-                ->orderBy('count', 'desc')
-                ->limit(10)
-                ->with('user:id,name,email,role')
-                ->get();
+            if ($request->has('type')) {
+                $query->whereIn('type', explode(',', $request->input('type')));
+            }
 
-            // Activity by type
-            $activityByType = ActivityLog::select([
-                    'log_type',
-                    DB::raw('COUNT(*) as count')
-                ])
-                ->groupBy('log_type')
-                ->orderBy('count', 'desc')
-                ->get();
+            if ($request->has('user_id')) {
+                $query->where('user_id', $request->input('user_id'));
+            }
 
-            // Recent activity
-            $recentActivity = ActivityLog::with('user:id,name')
-                ->orderBy('created_at', 'desc')
-                ->limit(5)
-                ->get();
+            if ($request->has('start_date') && $request->has('end_date')) {
+                $query->whereBetween('created_at', [
+                    $request->input('start_date'),
+                    $request->input('end_date')
+                ]);
+            }
+
+            if ($request->has('search')) {
+                $search = $request->input('search');
+                $query->where(function($q) use ($search) {
+                    $q->where('description', 'like', "%{$search}%")
+                      ->orWhere('action', 'like', "%{$search}%")
+                      ->orWhere('entity_type', 'like', "%{$search}%")
+                      ->orWhere('entity_name', 'like', "%{$search}%")
+                      ->orWhere('ip_address', 'like', "%{$search}%");
+                });
+            }
+
+            // Pagination
+            $perPage = $request->input('per_page', 50);
+            $logs = $query->paginate($perPage);
 
             return response()->json([
-                'daily_stats' => $dailyStats,
-                'top_actions' => $topActions,
-                'top_users' => $topUsers,
-                'activity_by_type' => $activityByType,
-                'recent_activity' => $recentActivity,
-                'summary' => [
-                    'total_logs' => ActivityLog::count(),
-                    'total_users' => ActivityLog::whereNotNull('user_id')->distinct('user_id')->count(),
-                    'today_logs' => ActivityLog::whereDate('created_at', today())->count(),
-                    'yesterday_logs' => ActivityLog::whereDate('created_at', today()->subDay())->count(),
+                'logs' => $logs->items(),
+                'pagination' => [
+                    'total' => $logs->total(),
+                    'per_page' => $logs->perPage(),
+                    'current_page' => $logs->currentPage(),
+                    'last_page' => $logs->lastPage(),
                 ]
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Stats Error: ' . $e->getMessage());
+            \Log::error('Error fetching activity logs: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Error fetching stats',
-                'error' => $e->getMessage()
+                'error' => 'Failed to fetch activity logs',
+                'message' => $e->getMessage()
             ], 500);
         }
     }
 
-    public function userActivity($userId)
+    /**
+     * Get activity statistics
+     */
+    public function stats(Request $request): JsonResponse
     {
-        $currentUser = Auth::user();
-        
-        // Users can only see their own activity logs
-        // Admin can see anyone's logs
-        if ($currentUser->role !== 'Admin' && $currentUser->id != $userId) {
-            return response()->json(['message' => 'You can only view your own activity logs'], 403);
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+
+            $stats = [
+                'total_logs' => ActivityLog::count(),
+                'today_logs' => ActivityLog::whereDate('created_at', today())->count(),
+                'unique_users' => ActivityLog::distinct('user_id')->count('user_id'),
+                'by_severity' => ActivityLog::select('severity', \DB::raw('count(*) as count'))
+                    ->groupBy('severity')
+                    ->get()->pluck('count', 'severity'),
+                'by_type' => ActivityLog::select('type', \DB::raw('count(*) as count'))
+                    ->groupBy('type')
+                    ->get()->pluck('count', 'type'),
+                'recent_activity' => ActivityLog::with(['user:id,name'])
+                    ->orderBy('created_at', 'desc')
+                    ->limit(10)
+                    ->get()
+            ];
+
+            return response()->json($stats);
+
+        } catch (\Exception $e) {
+            \Log::error('Error fetching activity stats: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch statistics'], 500);
         }
-
-        $activities = ActivityLog::where('user_id', $userId)
-            ->with('user')
-            ->orderBy('created_at', 'desc')
-            ->paginate(50);
-
-        return response()->json($activities);
     }
 
-    public function myActivity(Request $request)
+    /**
+     * Get user-specific activity
+     */
+    public function userActivity(Request $request, $userId): JsonResponse
     {
-        // Simple endpoint for users to see only their own logs
-        $user = Auth::user();
-        
-        $query = ActivityLog::where('user_id', $user->id)
-            ->orderBy('created_at', 'desc');
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
 
-        if ($request->has('log_type')) {
-            $query->where('log_type', $request->log_type);
+            // Only admin can view other users' activity
+            if ($user->role !== 'Admin' && $user->id != $userId) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $logs = ActivityLog::with(['user:id,name,email,role'])
+                ->where('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->paginate(50);
+
+            return response()->json($logs);
+
+        } catch (\Exception $e) {
+            \Log::error('Error fetching user activity: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch user activity'], 500);
         }
-
-        if ($request->has('action')) {
-            $query->where('action', $request->action);
-        }
-
-        $perPage = $request->get('per_page', 20);
-        $logs = $query->paginate($perPage);
-
-        return response()->json($logs);
     }
 
-    public function clearOldLogs()
+    /**
+     * Get current user's activity
+     */
+    public function myActivity(Request $request): JsonResponse
     {
-        // Only admins can clear logs
-        if (Auth::user()->role !== 'Admin') {
-            return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+
+            $logs = ActivityLog::with(['user:id,name,email,role'])
+                ->where('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->paginate(50);
+
+            return response()->json($logs);
+
+        } catch (\Exception $e) {
+            \Log::error('Error fetching my activity: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to fetch your activity'], 500);
         }
+    }
 
-        // Delete logs older than 90 days
-        $deleted = ActivityLog::where('created_at', '<', now()->subDays(90))->delete();
+    /**
+     * Clear old logs (Admin only)
+     */
+    public function clearOldLogs(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user || $user->role !== 'Admin') {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
 
-        return response()->json([
-            'message' => "Deleted {$deleted} old log entries"
-        ]);
+            $days = $request->input('days', 30);
+            $cutoffDate = now()->subDays($days);
+
+            $deleted = ActivityLog::where('created_at', '<', $cutoffDate)->delete();
+
+            // Log this action
+            $this->logActivity(
+                $user->id,
+                'system',
+                'LOGS_CLEARED',
+                "Cleared {$deleted} old activity logs older than {$days} days",
+                null,
+                'info'
+            );
+
+            return response()->json([
+                'message' => "Successfully cleared {$deleted} old logs",
+                'deleted_count' => $deleted
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error clearing old logs: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to clear old logs'], 500);
+        }
+    }
+
+    /**
+     * Helper method to log activity (to be used in other controllers)
+     */
+    public static function logActivity(
+        $userId,
+        $entityType,
+        $action,
+        $description,
+        $entityId = null,
+        $severity = 'info',
+        $ipAddress = null,
+        $userAgent = null
+    ): void {
+        try {
+            ActivityLog::create([
+                'user_id' => $userId,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'action' => $action,
+                'description' => $description,
+                'severity' => $severity,
+                'ip_address' => $ipAddress ?? request()->ip(),
+                'user_agent' => $userAgent ?? request()->header('User-Agent'),
+                'metadata' => json_encode([
+                    'url' => request()->fullUrl(),
+                    'method' => request()->method(),
+                    'timestamp' => now()->toISOString(),
+                ])
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to log activity: ' . $e->getMessage());
+        }
     }
 }
