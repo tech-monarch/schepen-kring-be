@@ -134,75 +134,132 @@ class FaqController extends Controller
         ]);
     }
 
-    // Ask Gemini AI based on trained knowledge
-    public function askGemini(Request $request)
-    {
-        $request->validate([
-            'question' => 'required|string|max:500'
+public function askGemini(Request $request)
+{
+    $request->validate([
+        'question' => 'required|string|max:500'
+    ]);
+    
+    // Get context from FAQ database
+    $faqs = Faq::orderBy('views', 'desc')
+               ->limit(30) // Reduced from 50 to avoid token limit
+               ->get(['question', 'answer', 'category']);
+    
+    if ($faqs->isEmpty()) {
+        return response()->json([
+            'answer' => 'The knowledge base is currently empty. Please check back later or contact support.',
+            'sources' => 0,
+            'timestamp' => now()->toDateTimeString()
+        ]);
+    }
+    
+    // Create context for Gemini
+    $context = "You are a helpful maritime assistant for Schepen Kring. Answer based on the following FAQs:\n\n";
+    
+    foreach ($faqs as $faq) {
+        $context .= "Q: {$faq->question}\n";
+        $context .= "A: {$faq->answer}\n";
+        $context .= "Category: {$faq->category}\n\n";
+    }
+    
+    $context .= "Now answer this question based only on the FAQs above. If the answer isn't in the FAQs, say: 'I don't have specific information about that. For more details, please contact our support team.'\n\n";
+    $context .= "Question: {$request->question}\nAnswer:";
+    
+    $geminiApiKey = env('GEMINI_API_KEY');
+    
+    if (!$geminiApiKey) {
+        Log::error('Gemini API key is not set');
+        return response()->json([
+            'answer' => 'AI service is currently unavailable. Please try again later.',
+            'sources' => $faqs->count(),
+            'timestamp' => now()->toDateTimeString()
+        ], 503);
+    }
+    
+    try {
+        // Call Gemini API with better error handling
+        $response = Http::withHeaders([
+            'Content-Type' => 'application/json',
+        ])->timeout(30) // 30 second timeout
+          ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={$geminiApiKey}", [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $context]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => 0.7,
+                'maxOutputTokens' => 1000,
+                'topP' => 0.8,
+                'topK' => 40
+            ],
+            'safetySettings' => [
+                [
+                    'category' => 'HARM_CATEGORY_HARASSMENT',
+                    'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                ],
+                [
+                    'category' => 'HARM_CATEGORY_HATE_SPEECH',
+                    'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
+                ]
+            ]
         ]);
         
-        // Get context from Faq database
-        $faqs = Faq::orderBy('views', 'desc')
-                   ->limit(50) // Limit to avoid token overflow
-                   ->get(['question', 'answer', 'category']);
-        
-        // Create context for Gemini
-        $context = "You are a Maritime Faq assistant for Schepen Kring. Here are the existing Faqs:\n\n";
-        
-        foreach ($faqs as $faq) {
-            $context .= "Q: {$faq->question}\n";
-            $context .= "A: {$faq->answer}\n";
-            $context .= "Category: {$faq->category}\n\n";
+        if ($response->failed()) {
+            Log::error('Gemini API failed: ' . $response->status() . ' - ' . $response->body());
+            throw new \Exception('Gemini API request failed with status: ' . $response->status());
         }
         
-        $context .= "Now answer this new question based on the Faqs above. If the answer is not in the Faqs, say 'I don't have specific information about that, but here's what I know from the Faqs: [mention related Faqs]. For more details, please contact our support team.'\n\n";
-        $context .= "Question: {$request->question}\nAnswer:";
+        $responseData = $response->json();
         
-        try {
-            // Call Gemini API
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-            ])->post('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' . env('GEMINI_API_KEY'), [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $context]
-                        ]
-                    ]
-                ],
-                'generationConfig' => [
-                    'temperature' => 0.7,
-                    'maxOutputTokens' => 500,
-                ]
-            ]);
-            
-            if ($response->successful()) {
-                $answer = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? 'Sorry, I could not generate an answer.';
-                
-                // Store the question in database for future training
-                if (!Faq::where('question', 'like', '%' . $request->question . '%')->exists()) {
-                    // You could auto-create Faq or flag for review
-                    Log::info('New Faq question asked: ' . $request->question);
-                }
-                
-                return response()->json([
-                    'answer' => $answer,
-                    'sources' => $faqs->count(),
-                    'timestamp' => now()->toDateTimeString()
-                ]);
-            } else {
-                throw new \Exception('Gemini API request failed');
+        if (!isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
+            Log::error('Gemini API returned unexpected format: ' . json_encode($responseData));
+            throw new \Exception('Invalid response format from Gemini API');
+        }
+        
+        $answer = $responseData['candidates'][0]['content']['parts'][0]['text'];
+        
+        // Clean up the answer
+        $answer = trim($answer);
+        
+        Log::info('Gemini question asked: ' . $request->question);
+        
+        return response()->json([
+            'answer' => $answer,
+            'sources' => $faqs->count(),
+            'timestamp' => now()->toDateTimeString()
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Gemini API error: ' . $e->getMessage());
+        
+        // Fallback: return answer from FAQ search if available
+        $relevantFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
+                          ->orWhere('answer', 'like', '%' . $request->question . '%')
+                          ->limit(3)
+                          ->get();
+        
+        if ($relevantFaqs->isNotEmpty()) {
+            $fallbackAnswer = "Based on our FAQs, here's what might help:\n\n";
+            foreach ($relevantFaqs as $faq) {
+                $fallbackAnswer .= "Q: {$faq->question}\n";
+                $fallbackAnswer .= "A: {$faq->answer}\n\n";
             }
-        } catch (\Exception $e) {
-            Log::error('Gemini API error: ' . $e->getMessage());
-            
-            return response()->json([
-                'answer' => 'I apologize, but I\'m having trouble accessing the knowledge base. Please try again later or browse our existing Faqs.',
-                'error' => $e->getMessage(),
-                'sources' => 0
-            ], 500);
+            $fallbackAnswer .= "For more specific questions, please contact support.";
+        } else {
+            $fallbackAnswer = 'I apologize, but I cannot answer that question at the moment. Please browse our FAQs or contact our support team for assistance.';
         }
+        
+        return response()->json([
+            'answer' => $fallbackAnswer,
+            'sources' => $relevantFaqs->count(),
+            'timestamp' => now()->toDateTimeString(),
+            'error' => $e->getMessage()
+        ], 200); // Still return 200 but with fallback
     }
+}
 
     // Train Gemini with all Faqs (Admin function)
     public function trainGemini()

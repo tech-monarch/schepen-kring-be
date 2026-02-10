@@ -180,8 +180,7 @@ Route::post('/public/blogs/{id}/view', [BlogController::class, 'incrementViews']
 
 
 // Add to your existing routes
-
-// Public Faq routes
+// Public FAQ routes
 Route::get('/faqs', [FaqController::class, 'index']);
 Route::get('/faqs/{id}', [FaqController::class, 'show']);
 Route::post('/faqs/ask-gemini', [FaqController::class, 'askGemini']);
@@ -189,7 +188,7 @@ Route::get('/faqs/stats', [FaqController::class, 'stats']);
 Route::post('/faqs/{id}/rate-helpful', [FaqController::class, 'rateHelpful']);
 Route::post('/faqs/{id}/rate-not-helpful', [FaqController::class, 'rateNotHelpful']);
 
-// Protected Faq routes (Admin onlyy)
+// Protected FAQ routes (Admin only)
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/faqs', [FaqController::class, 'store']);
     Route::put('/faqs/{id}', [FaqController::class, 'update']);
