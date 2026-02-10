@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 
-class YachtController extends Controller {
+class YachtController1 extends Controller {
 
     // Public index - returns all yachts (for public browsing)
     public function index(): JsonResponse {

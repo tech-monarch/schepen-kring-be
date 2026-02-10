@@ -5,8 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use App\Traits\HasSystemLogs;
 
-class Yacht extends Model {
+class Yacht extends Model
+{
+    use HasSystemLogs;
+    
+    // Define which events to log
+    protected $logEvents = ['created', 'updated'];
     
     protected $fillable = [
         // Core

@@ -5,10 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\HasSystemLogs;
 
 class Task extends Model
 {
     use HasFactory;
+    use HasSystemLogs;
+    
+    // Define which events to log
+    protected $logEvents = ['created', 'updated', 'deleted'];
 
     protected $fillable = [
         'title',

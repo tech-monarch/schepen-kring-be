@@ -139,6 +139,8 @@ public function destroy(User $user)
         ]);
     }
 
+// In UserController.php - update login method
+
 public function login(Request $request)
 {
     $credentials = $request->validate([
@@ -147,15 +149,6 @@ public function login(Request $request)
     ]);
     
     if (!Auth::attempt($credentials)) {
-        // Log failed login attempt
-        ActivityLog::log(
-            'auth',
-            'login_failed',
-            "Failed login attempt for email: {$request->email}",
-            null,
-            ['email' => $request->email, 'ip' => $request->ip()]
-        );
-        
         return response()->json([
             'message' => 'Identity could not be verified. Check credentials.'
         ], 401);
@@ -163,14 +156,9 @@ public function login(Request $request)
 
     $user = Auth::user();
     
-    // Log successful login
-    $this->logActivity(
-        'login',
-        "User {$user->name} logged in successfully",
-        ['user_id' => $user->id, 'email' => $user->email],
-        true // Notify admins
-    );
-
+    // Log the login using our new SystemLog
+    \App\Services\SystemLogService::logUserLogin($user, $request);
+    
     $token = $user->createToken('terminal_access_token')->plainTextToken;
     
     return response()->json([
@@ -178,11 +166,27 @@ public function login(Request $request)
         'id' => $user->id,
         'name' => $user->name,
         'email' => $user->email,
-        'userType' => $user->role, 
+        'userType' => $user->role,
         'status' => $user->status,
         'access_level' => $user->access_level,
         'permissions' => $user->getPermissionNames(),
     ]);
+}
+
+// Add logout method
+public function logout(Request $request)
+{
+    $user = $request->user();
+    
+    if ($user) {
+        // Log the logout
+        \App\Services\SystemLogService::logUserLogout($user, $request);
+        
+        // Revoke all tokens
+        $user->tokens()->delete();
+    }
+    
+    return response()->json(['message' => 'Logged out successfully']);
 }
 
     public function getAllPermissions() {

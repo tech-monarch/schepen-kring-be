@@ -4,7 +4,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\HasSystemLogs;
 
-class Bid extends Model
+class Bidding extends Model
 {
     use HasSystemLogs;
     
@@ -16,13 +16,7 @@ class Bid extends Model
         'user_id',
         'amount',
         'status',
-        'finalized_at',
-        'finalized_by'
-    ];
-    
-    protected $casts = [
-        'amount' => 'decimal:2',
-        'finalized_at' => 'datetime',
+        'notes'
     ];
     
     public function yacht()
@@ -33,10 +27,5 @@ class Bid extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
-    }
-    
-    public function finalizedBy()
-    {
-        return $this->belongsTo(User::class, 'finalized_by');
     }
 }

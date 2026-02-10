@@ -18,6 +18,7 @@ use App\Http\Controllers\BlogController;
 use App\Http\Controllers\ActivityLogController; // Add this
 use App\Http\Controllers\NotificationController; // Add this
 use App\Http\Controllers\FaqController; // Add this
+use App\Http\Controllers\SystemLogController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -213,4 +214,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/faqs/{id}', [FaqController::class, 'destroy']);
     Route::post('/faqs/train-gemini', [FaqController::class, 'trainGemini']);
     Route::get('/faqs/training-status', [FaqController::class, 'getTrainingStatus']);
+});
+
+
+// routes/api.php
+
+// System Log routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('system-logs')->group(function () {
+        Route::get('/', [SystemLogController::class, 'index']);
+        Route::get('/summary', [SystemLogController::class, 'summary']);
+        Route::get('/export', [SystemLogController::class, 'export']);
+        Route::get('/user/{userId}', [SystemLogController::class, 'userActivity']);
+        Route::get('/{id}', [SystemLogController::class, 'show']);
+    });
 });
