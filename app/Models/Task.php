@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Task extends Model
 {
-    // 1. THIS IS THE FIX: We must tell Laravel these fields are "Fillable"
+    use HasFactory;
+
     protected $fillable = [
         'title', 
         'description', 
@@ -15,18 +17,42 @@ class Task extends Model
         'status', 
         'assigned_to', 
         'yacht_id', 
-        'due_date'
+        'due_date',
+        'created_by'
     ];
 
-    // 2. This matches your controller's ->load(['assignedTo'])
+    protected $casts = [
+        'due_date' => 'datetime',
+    ];
+
     public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
-    // 3. This matches your controller's ->load(['yacht'])
     public function yacht(): BelongsTo
     {
         return $this->belongsTo(Yacht::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    // Helper methods
+    public function isAssignedTo(User $user): bool
+    {
+        return $this->assigned_to === $user->id;
+    }
+
+    public function canBeViewedBy(User $user): bool
+    {
+        return $user->role === 'Admin' || $this->isAssignedTo($user);
+    }
+
+    public function canBeUpdatedBy(User $user): bool
+    {
+        return $user->role === 'Admin' || $this->isAssignedTo($user);
     }
 }
