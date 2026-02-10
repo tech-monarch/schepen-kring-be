@@ -44,6 +44,8 @@ public function index(): JsonResponse {
         return $this->saveYacht($request, $id);
     }
 
+// In YachtController.php - update the saveYacht method:
+
 protected function saveYacht(Request $request, $id = null): JsonResponse
 {
     try {
@@ -52,79 +54,44 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
         $isUpdate = $id !== null;
         $yacht = $isUpdate ? Yacht::findOrFail($id) : new Yacht();
 
-        // Basic validation
-        $rules = [
-            'boat_name' => $isUpdate ? 'sometimes|required|string' : 'required|string',
-            'price' => $isUpdate ? 'sometimes|nullable|numeric' : 'nullable|numeric',
-            'year' => 'nullable|integer',
-            'main_image' => $isUpdate ? 'nullable|image|max:5120' : 'sometimes|image|max:5120',
-
-            // ✅ ADDED
-            'min_bid_amount' => $isUpdate
-                ? 'sometimes|nullable|numeric|min:0'
-                : 'nullable|numeric|min:0',
-        ];
-
-        $validator = Validator::make($request->all(), $rules);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+        // REMOVED VALIDATION - just check required fields
+        if (!$request->has('boat_name') || empty($request->input('boat_name'))) {
+            return response()->json(['message' => 'Boat name is required'], 422);
         }
-        
-    // Handle display_specs field
-    if ($request->has('display_specs')) {
-        $displaySpecs = [];
-        
-        // Collect all checked specs from request
-        foreach ($request->all() as $key => $value) {
-            if (str_starts_with($key, 'display_specs[') && $value === 'on') {
-                // Extract field name from display_specs[field_name]
-                preg_match('/display_specs\[(.*?)\]/', $key, $matches);
-                if (isset($matches[1])) {
-                    $displaySpecs[] = $matches[1];
-                }
-            }
-        }
-        
-        $yacht->display_specs = $displaySpecs;
-    } elseif (!$isUpdate) {
-        // For new yachts, default to empty (show all)
-        $yacht->display_specs = [];
-    }
 
-        // Define all fields from the new structure
+        // Define all fields from the structure
         $allFields = [
             // Core
-            'boat_name', 'price', 'status', 'year', 'main_image',
-
-            // ✅ ADDED
-            'min_bid_amount',
-
+            'boat_name', 'price', 'status', 'year', 'main_image', 'min_bid_amount',
+            
             // URLs and references
-            'external_url', 'print_url', 'owners_comment', 'reg_details',
+            'external_url', 'print_url', 'owners_comment', 'reg_details', 
             'known_defects', 'last_serviced',
-
+            
             // Dimensions
             'beam', 'draft', 'loa', 'lwl', 'air_draft', 'passenger_capacity',
-
+            
             // Construction
             'designer', 'builder', 'where', 'hull_colour', 'hull_construction',
             'hull_number', 'hull_type', 'super_structure_colour', 'super_structure_construction',
             'deck_colour', 'deck_construction',
-
+            
             // Configuration
             'cockpit_type', 'control_type', 'ballast', 'displacement',
-
+            
             // Accommodation
             'cabins', 'berths', 'toilet', 'shower', 'bath',
-
+            
             // Kitchen equipment
             'heating',
-
+            
             // Engine and propulsion
             'stern_thruster', 'bow_thruster', 'fuel', 'hours', 'cruising_speed', 'max_speed',
             'horse_power', 'engine_manufacturer', 'tankage', 'gallons_per_hour',
             'starting_type', 'drive_type',
+            
+            // New fields
+            'display_specs'
         ];
 
         // Text fields
@@ -147,15 +114,31 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             'spray_hood', 'bimini'
         ];
 
-        // Handle regular fields
+        // Handle all fields
         foreach ($allFields as $field) {
             if ($request->has($field)) {
                 $value = $request->input($field);
-                $yacht->{$field} = ($value === '' || $value === 'undefined' || $value === null) ? null : $value;
+                
+                // Handle empty values
+                if ($value === '' || $value === 'undefined' || $value === null) {
+                    $yacht->{$field} = null;
+                } else {
+                    // Special handling for display_specs
+                    if ($field === 'display_specs') {
+                        if (is_string($value)) {
+                            $decoded = json_decode($value, true);
+                            $yacht->{$field} = $decoded ? $decoded : [];
+                        } else {
+                            $yacht->{$field} = $value;
+                        }
+                    } else {
+                        $yacht->{$field} = $value;
+                    }
+                }
             }
         }
 
-        // Handle text fields
+        // Handle text fields - ensure they're properly set
         foreach ($textFields as $field) {
             if ($request->has($field)) {
                 $value = $request->input($field);
@@ -163,11 +146,11 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             }
         }
 
-        // Handle boolean fields
+        // Handle boolean fields - simplified
         foreach ($booleanFields as $field) {
             if ($request->has($field)) {
                 $value = $request->input($field);
-                $yacht->{$field} = ($value === '1' || $value === 'true' || $value === 1 || $value === true);
+                $yacht->{$field} = filter_var($value, FILTER_VALIDATE_BOOLEAN);
             } elseif (!$isUpdate) {
                 $yacht->{$field} = false;
             }
@@ -184,22 +167,29 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
         // Set user_id for new yachts
         if (!$isUpdate) {
             $yacht->user_id = auth()->id();
-
+            // Generate vessel ID if not set
             if (!$yacht->vessel_id) {
                 $yacht->vessel_id = 'SK-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(3)));
             }
         }
 
+        // Auto-calculate min_bid_amount if not set and price exists
+        if (empty($yacht->min_bid_amount) && !empty($yacht->price)) {
+            $yacht->min_bid_amount = $yacht->price * 0.9;
+        }
+
+        // Save the yacht
         $yacht->save();
 
         // Handle availability rules
         if ($request->filled('availability_rules')) {
             try {
                 $rules = json_decode($request->input('availability_rules'), true);
-
+                
                 if (json_last_error() === JSON_ERROR_NONE && is_array($rules)) {
+                    // Delete old rules
                     $yacht->availabilityRules()->delete();
-
+                    
                     foreach ($rules as $rule) {
                         if (!empty($rule['day_of_week']) && !empty($rule['start_time']) && !empty($rule['end_time'])) {
                             $yacht->availabilityRules()->create([
@@ -217,6 +207,7 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
 
         DB::commit();
 
+        // Reload with relationships
         $yacht->load(['images', 'availabilityRules']);
 
         return response()->json($yacht, $isUpdate ? 200 : 201);
@@ -228,7 +219,7 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             'line' => $e->getLine(),
             'file' => $e->getFile(),
             'trace' => $e->getTraceAsString(),
-            'request_data' => $request->except(['main_image', 'images']),
+            'request_data' => $request->all(),
             'yacht_id' => $id ?? 'new'
         ]);
 
