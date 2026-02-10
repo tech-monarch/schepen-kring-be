@@ -56,12 +56,16 @@ class Yacht extends Model {
         
         // Deck equipment
         'anchor', 'spray_hood', 'bimini', 'fenders',
+        'min_bid_amount',
+        'display_specs',
     ];
 
     protected $casts = [
         'price' => 'float',
         'year' => 'integer',
         'passenger_capacity' => 'integer',
+        'min_bid_amount' => 'float',
+        'display_specs' => 'array',
         
         // Booleans
         'allow_bidding' => 'boolean',
