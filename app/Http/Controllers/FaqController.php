@@ -142,7 +142,7 @@ public function askGemini(Request $request)
     
     // Get context from FAQ database
     $faqs = Faq::orderBy('views', 'desc')
-               ->limit(30) // Reduced from 50 to avoid token limit
+               ->limit(30)
                ->get(['question', 'answer', 'category']);
     
     if ($faqs->isEmpty()) {
@@ -165,22 +165,42 @@ public function askGemini(Request $request)
     $context .= "Now answer this question based only on the FAQs above. If the answer isn't in the FAQs, say: 'I don't have specific information about that. For more details, please contact our support team.'\n\n";
     $context .= "Question: {$request->question}\nAnswer:";
     
-    $geminiApiKey = env('GEMINI_API_KEY');
+    // HARDCODED API KEY - REPLACE WITH YOUR ACTUAL KEY
+    $geminiApiKey = 'AIzaSyDe313onWf6a2C8uHHcJDP6bW7-tvnkkoE'; // REPLACE THIS
     
-    if (!$geminiApiKey) {
-        Log::error('Gemini API key is not set');
+    if (!$geminiApiKey || $geminiApiKey === 'AIzaSyDe313onWf6a2C8uHHcJDP6bW7-tvnkkoE') {
+        Log::error('Gemini API key is not set or is placeholder');
+        
+        // Fallback: return answer from FAQ search
+        $relevantFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
+                          ->orWhere('answer', 'like', '%' . $request->question . '%')
+                          ->limit(3)
+                          ->get();
+        
+        if ($relevantFaqs->isNotEmpty()) {
+            $fallbackAnswer = "Based on our FAQs, here's what might help:\n\n";
+            foreach ($relevantFaqs as $faq) {
+                $fallbackAnswer .= "Q: {$faq->question}\n";
+                $fallbackAnswer .= "A: {$faq->answer}\n\n";
+            }
+            $fallbackAnswer .= "For more specific questions, please contact support.";
+        } else {
+            $fallbackAnswer = "I apologize, but I cannot answer that question at the moment. Please browse our FAQs or contact our support team for assistance.";
+        }
+        
         return response()->json([
-            'answer' => 'AI service is currently unavailable. Please try again later.',
-            'sources' => $faqs->count(),
-            'timestamp' => now()->toDateTimeString()
-        ], 503);
+            'answer' => $fallbackAnswer,
+            'sources' => $relevantFaqs->count(),
+            'timestamp' => now()->toDateTimeString(),
+            'note' => 'AI service is currently being set up. This is a fallback response.'
+        ]);
     }
     
     try {
-        // Call Gemini API with better error handling
+        // Call Gemini API with hardcoded key
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
-        ])->timeout(30) // 30 second timeout
+        ])->timeout(30)
           ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={$geminiApiKey}", [
             'contents' => [
                 [
@@ -209,7 +229,24 @@ public function askGemini(Request $request)
         
         if ($response->failed()) {
             Log::error('Gemini API failed: ' . $response->status() . ' - ' . $response->body());
-            throw new \Exception('Gemini API request failed with status: ' . $response->status());
+            
+            // Fallback response
+            $fallbackAnswer = "I'm having trouble accessing the AI service at the moment. Here are some related FAQs:\n\n";
+            $relevantFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
+                              ->orWhere('answer', 'like', '%' . $request->question . '%')
+                              ->limit(3)
+                              ->get();
+            
+            foreach ($relevantFaqs as $faq) {
+                $fallbackAnswer .= "Q: {$faq->question}\n";
+                $fallbackAnswer .= "A: {$faq->answer}\n\n";
+            }
+            
+            return response()->json([
+                'answer' => $fallbackAnswer,
+                'sources' => $relevantFaqs->count(),
+                'timestamp' => now()->toDateTimeString()
+            ]);
         }
         
         $responseData = $response->json();
@@ -235,29 +272,13 @@ public function askGemini(Request $request)
     } catch (\Exception $e) {
         Log::error('Gemini API error: ' . $e->getMessage());
         
-        // Fallback: return answer from FAQ search if available
-        $relevantFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
-                          ->orWhere('answer', 'like', '%' . $request->question . '%')
-                          ->limit(3)
-                          ->get();
-        
-        if ($relevantFaqs->isNotEmpty()) {
-            $fallbackAnswer = "Based on our FAQs, here's what might help:\n\n";
-            foreach ($relevantFaqs as $faq) {
-                $fallbackAnswer .= "Q: {$faq->question}\n";
-                $fallbackAnswer .= "A: {$faq->answer}\n\n";
-            }
-            $fallbackAnswer .= "For more specific questions, please contact support.";
-        } else {
-            $fallbackAnswer = 'I apologize, but I cannot answer that question at the moment. Please browse our FAQs or contact our support team for assistance.';
-        }
-        
+        // Final fallback
         return response()->json([
-            'answer' => $fallbackAnswer,
-            'sources' => $relevantFaqs->count(),
+            'answer' => "I apologize, but our AI assistant is temporarily unavailable. Please browse our FAQ categories or contact support for assistance with your question: '{$request->question}'",
+            'sources' => 0,
             'timestamp' => now()->toDateTimeString(),
-            'error' => $e->getMessage()
-        ], 200); // Still return 200 but with fallback
+            'error' => 'Service temporarily unavailable'
+        ], 200);
     }
 }
 
