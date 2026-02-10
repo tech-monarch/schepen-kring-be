@@ -41,6 +41,33 @@ class ActivityLog extends Model
     }
 
     /**
+     * Static method to log activity (for backward compatibility)
+     * This is what your code is trying to call
+     */
+    public static function log(
+        $userId,
+        $entityType,
+        $action,
+        $description,
+        $entityId = null,
+        $severity = 'info',
+        $ipAddress = null,
+        $userAgent = null
+    ): void {
+        // Delegate to the controller method
+        \App\Http\Controllers\ActivityLogController::logActivity(
+            $userId,
+            $entityType,
+            $action,
+            $description,
+            $entityId,
+            $severity,
+            $ipAddress,
+            $userAgent
+        );
+    }
+
+    /**
      * Scope for severity filter
      */
     public function scopeOfSeverity($query, $severity)
