@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class FaqController extends Controller
 {
-    // Get all FAQs for display
+    // Get all Faqs for display
     public function index(Request $request)
     {
         $query = Faq::query();
@@ -42,7 +42,7 @@ class FaqController extends Controller
         ]);
     }
 
-    // Store new FAQ (Admin only)
+    // Store new Faq (Admin only)
     public function store(Request $request)
     {
         $request->validate([
@@ -57,16 +57,16 @@ class FaqController extends Controller
             'category' => $request->category
         ]);
         
-        // Train Gemini with new FAQ
+        // Train Gemini with new Faq
         $this->trainGemini();
         
         return response()->json([
-            'message' => 'FAQ added successfully',
+            'message' => 'Faq added successfully',
             'faq' => $faq
         ], 201);
     }
 
-    // Update FAQ
+    // Update Faq
     public function update(Request $request, $id)
     {
         $faq = Faq::findOrFail($id);
@@ -83,12 +83,12 @@ class FaqController extends Controller
         $this->trainGemini();
         
         return response()->json([
-            'message' => 'FAQ updated successfully',
+            'message' => 'Faq updated successfully',
             'faq' => $faq
         ]);
     }
 
-    // Delete FAQ
+    // Delete Faq
     public function destroy($id)
     {
         $faq = Faq::findOrFail($id);
@@ -98,11 +98,11 @@ class FaqController extends Controller
         $this->trainGemini();
         
         return response()->json([
-            'message' => 'FAQ deleted successfully'
+            'message' => 'Faq deleted successfully'
         ]);
     }
 
-    // Get FAQ by ID and increment views
+    // Get Faq by ID and increment views
     public function show($id)
     {
         $faq = Faq::findOrFail($id);
@@ -111,7 +111,7 @@ class FaqController extends Controller
         return response()->json($faq);
     }
 
-    // Rate FAQ helpfulness
+    // Rate Faq helpfulness
     public function rateHelpful($id)
     {
         $faq = Faq::findOrFail($id);
@@ -141,13 +141,13 @@ class FaqController extends Controller
             'question' => 'required|string|max:500'
         ]);
         
-        // Get context from FAQ database
+        // Get context from Faq database
         $faqs = Faq::orderBy('views', 'desc')
                    ->limit(50) // Limit to avoid token overflow
                    ->get(['question', 'answer', 'category']);
         
         // Create context for Gemini
-        $context = "You are a Maritime FAQ assistant for Schepen Kring. Here are the existing FAQs:\n\n";
+        $context = "You are a Maritime Faq assistant for Schepen Kring. Here are the existing Faqs:\n\n";
         
         foreach ($faqs as $faq) {
             $context .= "Q: {$faq->question}\n";
@@ -155,7 +155,7 @@ class FaqController extends Controller
             $context .= "Category: {$faq->category}\n\n";
         }
         
-        $context .= "Now answer this new question based on the FAQs above. If the answer is not in the FAQs, say 'I don't have specific information about that, but here's what I know from the FAQs: [mention related FAQs]. For more details, please contact our support team.'\n\n";
+        $context .= "Now answer this new question based on the Faqs above. If the answer is not in the Faqs, say 'I don't have specific information about that, but here's what I know from the Faqs: [mention related Faqs]. For more details, please contact our support team.'\n\n";
         $context .= "Question: {$request->question}\nAnswer:";
         
         try {
@@ -181,8 +181,8 @@ class FaqController extends Controller
                 
                 // Store the question in database for future training
                 if (!Faq::where('question', 'like', '%' . $request->question . '%')->exists()) {
-                    // You could auto-create FAQ or flag for review
-                    Log::info('New FAQ question asked: ' . $request->question);
+                    // You could auto-create Faq or flag for review
+                    Log::info('New Faq question asked: ' . $request->question);
                 }
                 
                 return response()->json([
@@ -197,23 +197,23 @@ class FaqController extends Controller
             Log::error('Gemini API error: ' . $e->getMessage());
             
             return response()->json([
-                'answer' => 'I apologize, but I\'m having trouble accessing the knowledge base. Please try again later or browse our existing FAQs.',
+                'answer' => 'I apologize, but I\'m having trouble accessing the knowledge base. Please try again later or browse our existing Faqs.',
                 'error' => $e->getMessage(),
                 'sources' => 0
             ], 500);
         }
     }
 
-    // Train Gemini with all FAQs (Admin function)
+    // Train Gemini with all Faqs (Admin function)
     public function trainGemini()
     {
         $faqs = Faq::all(['question', 'answer', 'category']);
         $faqCount = $faqs->count();
         
-        Log::info("Gemini training initiated with {$faqCount} FAQs");
+        Log::info("Gemini training initiated with {$faqCount} Faqs");
         
         // In a production system, you might:
-        // 1. Create embeddings for each FAQ
+        // 1. Create embeddings for each Faq
         // 2. Store them in a vector database
         // 3. Use similarity search for answers
         
@@ -222,7 +222,7 @@ class FaqController extends Controller
         cache()->put('gemini_faq_count', $faqCount);
         
         return response()->json([
-            'message' => "Gemini training completed with {$faqCount} FAQs",
+            'message' => "Gemini training completed with {$faqCount} Faqs",
             'last_trained' => now()->toDateTimeString(),
             'faq_count' => $faqCount
         ]);

@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Yacht;
-use App\Models\FAQ; // This is the model causing the crash
+use App\Models\Faq; // This is the model causing the crash
 use App\Models\ChatMessage;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -35,7 +35,7 @@ class GeminiController extends Controller
 
         // 2. FETCH KNOWLEDGE BASE (With Crash Protection)
         $yachtData = "No local yacht data available.";
-        $faqData = "No local FAQ data available.";
+        $faqData = "No local Faq data available.";
 
         // Protect against missing Yachts table
         try {
@@ -46,13 +46,13 @@ class GeminiController extends Controller
             Log::warning("Yacht table not found, skipping local fleet data.");
         }
 
-        // Protect against missing FAQs table (The fix for your 500 error)
+        // Protect against missing Faqs table (The fix for your 500 error)
         try {
-            $faqData = FAQ::all()->map(function($f) {
+            $faqData = Faq::all()->map(function($f) {
                 return "Q: {$f->question}\nA: {$f->answer}";
-            })->join("\n\n") ?: "No local FAQs found.";
+            })->join("\n\n") ?: "No local Faqs found.";
         } catch (\Exception $e) {
-            Log::warning("FAQ table not found, relying on trained data.");
+            Log::warning("Faq table not found, relying on trained data.");
         }
 
         // 3. SYSTEM CONTEXT
@@ -60,7 +60,7 @@ class GeminiController extends Controller
         ROLE: You are the 'Kring Schepen Yachts' AI Concierge. You are a premium maritime consultant.
         TONE & PERSONALITY: You must sound $chosenProfile
 
-        IMPORTANT: If local fleet or FAQ data is empty, do NOT mention an error. 
+        IMPORTANT: If local fleet or Faq data is empty, do NOT mention an error. 
         Instead, use your internal trained knowledge to provide expert advice on luxury yachts, 
         boat buying, and the yachting lifestyle.
 
@@ -69,7 +69,7 @@ class GeminiController extends Controller
         CURRENT FLEET:
         $yachtData
         ---
-        FAQS:
+        FaqS:
         $faqData
         ";
 
