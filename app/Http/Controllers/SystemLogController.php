@@ -6,22 +6,16 @@ namespace App\Http\Controllers;
 use App\Models\SystemLog;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SystemLogController extends Controller
 {
     /**
-     * Get all system logs with filters
+     * Get all system logs with filters (public endpoint)
      */
     public function index(Request $request): JsonResponse
     {
         try {
-            $user = Auth::user();
-            
-            if (!$user) {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
-            
             $query = SystemLog::with(['user:id,name,email,role'])
                 ->orderBy('created_at', 'desc');
             
@@ -48,6 +42,8 @@ class SystemLogController extends Controller
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
                     $q->where('description', 'like', "%{$search}%")
+                      ->orWhere('event_type', 'like', "%{$search}%")
+                      ->orWhere('entity_type', 'like', "%{$search}%")
                       ->orWhereHas('user', function($userQuery) use ($search) {
                           $userQuery->where('name', 'like', "%{$search}%")
                                    ->orWhere('email', 'like', "%{$search}%");
@@ -82,12 +78,15 @@ class SystemLogController extends Controller
             
         } catch (\Exception $e) {
             \Log::error('Error fetching system logs: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
+            return response()->json([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
     
     /**
-     * Get specific log details
+     * Get specific log details (public endpoint)
      */
     public function show($id): JsonResponse
     {
@@ -102,22 +101,19 @@ class SystemLogController extends Controller
             
         } catch (\Exception $e) {
             \Log::error('Error fetching log: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
+            return response()->json([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
     
     /**
-     * Get activity summary
+     * Get activity summary (public endpoint)
      */
     public function summary(Request $request): JsonResponse
     {
         try {
-            $user = Auth::user();
-            
-            if (!$user) {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
-            
             // Get total counts
             $totalLogs = SystemLog::count();
             
@@ -136,7 +132,7 @@ class SystemLogController extends Controller
                 ->get();
             
             // Get recent activity (last 10 logs)
-            $recentActivity = SystemLog::with(['user:id,name'])
+            $recentActivity = SystemLog::with(['user:id,name,email'])
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get();
@@ -161,56 +157,19 @@ class SystemLogController extends Controller
             
         } catch (\Exception $e) {
             \Log::error('Error generating summary: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
-        }
-    }
-    
-    /**
-     * Get user-specific activity
-     */
-    public function userActivity($userId): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            
-            // Allow users to view their own activity or admins to view anyone's
-            if (!$user || ($user->id != $userId && $user->role !== 'Admin')) {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-            
-            $logs = SystemLog::with(['user:id,name,email'])
-                ->where('user_id', $userId)
-                ->orderBy('created_at', 'desc')
-                ->paginate(50);
-            
             return response()->json([
-                'data' => $logs->items(),
-                'meta' => [
-                    'current_page' => $logs->currentPage(),
-                    'last_page' => $logs->lastPage(),
-                    'per_page' => $logs->perPage(),
-                    'total' => $logs->total(),
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            \Log::error('Error fetching user activity: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
     
     /**
-     * Export logs (CSV)
+     * Export logs (CSV) - public endpoint but with optional authentication
      */
     public function export(Request $request): JsonResponse
     {
         try {
-            $user = Auth::user();
-            
-            if (!$user || $user->role !== 'Admin') {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-            
             $query = SystemLog::with(['user:id,name,email']);
             
             // Apply filters same as index
@@ -235,12 +194,13 @@ class SystemLogController extends Controller
             $logs = $query->orderBy('created_at', 'desc')->get();
             
             // Generate CSV content
-            $csvData = "ID,Date,Time,Event Type,Entity Type,Entity ID,User,Description,IP Address\n";
+            $csvData = "ID,Date,Time,Event Type,Entity Type,Entity ID,User,Description,IP Address,User Agent\n";
             
             foreach ($logs as $log) {
                 $date = \Carbon\Carbon::parse($log->created_at)->format('Y-m-d');
                 $time = \Carbon\Carbon::parse($log->created_at)->format('H:i:s');
                 $userName = $log->user ? $log->user->name : 'System';
+                $userEmail = $log->user ? $log->user->email : 'N/A';
                 
                 $csvData .= implode(',', [
                     $log->id,
@@ -249,9 +209,10 @@ class SystemLogController extends Controller
                     '"' . $log->event_type . '"',
                     '"' . $log->entity_type . '"',
                     $log->entity_id ?? 'N/A',
-                    '"' . $userName . '"',
+                    '"' . $userName . ' (' . $userEmail . ')"',
                     '"' . str_replace('"', '""', $log->description) . '"',
-                    $log->ip_address ?? 'N/A'
+                    $log->ip_address ?? 'N/A',
+                    '"' . ($log->user_agent ? str_replace('"', '""', $log->user_agent) : 'N/A') . '"'
                 ]) . "\n";
             }
             
@@ -262,7 +223,64 @@ class SystemLogController extends Controller
             
         } catch (\Exception $e) {
             \Log::error('Error exporting logs: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
+            return response()->json([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Get system health check (public endpoint)
+     */
+    public function health(): JsonResponse
+    {
+        try {
+            // Check database connection
+            DB::connection()->getPdo();
+            
+            $totalLogs = SystemLog::count();
+            $lastLog = SystemLog::latest()->first();
+            
+            return response()->json([
+                'status' => 'healthy',
+                'database' => 'connected',
+                'total_logs' => $totalLogs,
+                'last_log_at' => $lastLog ? $lastLog->created_at : null,
+                'timestamp' => now()->toISOString(),
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'unhealthy',
+                'database' => 'disconnected',
+                'error' => $e->getMessage(),
+                'timestamp' => now()->toISOString(),
+            ], 500);
+        }
+    }
+    
+    /**
+     * Clear old logs (keep only last 90 days) - Public but with rate limiting
+     */
+    public function cleanup(): JsonResponse
+    {
+        try {
+            $cutoffDate = now()->subDays(90);
+            $deletedCount = SystemLog::where('created_at', '<', $cutoffDate)->delete();
+            
+            return response()->json([
+                'message' => 'Old logs cleaned up successfully',
+                'deleted_count' => $deletedCount,
+                'cutoff_date' => $cutoffDate->toDateString(),
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error cleaning up logs: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Internal server error',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 }

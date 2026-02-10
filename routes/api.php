@@ -217,19 +217,14 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
-// routes/api.php
-
-// System Log routes
-Route::middleware('auth:sanctum')->group(function () {
-    Route::prefix('system-logs')->group(function () {
-        // Route::get('/', [SystemLogController::class, 'index']);
-        // Route::get('/summary', [SystemLogController::class, 'summary']);
-        Route::get('/export', [SystemLogController::class, 'export']);
-        Route::get('/user/{userId}', [SystemLogController::class, 'userActivity']);
-        Route::get('/{id}', [SystemLogController::class, 'show']);
-    });
+// Public routes (no authentication required)
+Route::prefix('system-logs')->group(function () {
+    Route::get('/', [SystemLogController::class, 'index']);
+    Route::get('/summary', [SystemLogController::class, 'summary']);
+    Route::get('/export', [SystemLogController::class, 'export']);
+    Route::get('/health', [SystemLogController::class, 'health']);
+    Route::get('/{id}', [SystemLogController::class, 'show']);
+    
+    // Optional: Add rate limiting for cleanup endpoint
+    Route::middleware('throttle:1,1440')->delete('/cleanup', [SystemLogController::class, 'cleanup']);
 });
-
-// Make it public:
-Route::get('/system-logs', [SystemLogController::class, 'index']);
-Route::get('/system-logs/summary', [SystemLogController::class, 'summary']);
