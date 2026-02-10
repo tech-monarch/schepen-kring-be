@@ -189,7 +189,7 @@ Route::get('/faqs/stats', [FaqController::class, 'stats']);
 Route::post('/faqs/{id}/rate-helpful', [FaqController::class, 'rateHelpful']);
 Route::post('/faqs/{id}/rate-not-helpful', [FaqController::class, 'rateNotHelpful']);
 
-// Protected FAQ routes (Admin only)
+// Protected FAQ routes (Admin onlyy)
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/faqs', [FaqController::class, 'store']);
     Route::put('/faqs/{id}', [FaqController::class, 'update']);
