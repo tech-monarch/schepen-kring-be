@@ -321,4 +321,22 @@ public function getStaff()
     }
 }
 
+// Add this method to UserController.php
+public function getEmployeesForTasks()
+{
+    try {
+        // Get all active non-customer users for task assignment
+        $employees = User::where('status', 'Active')
+            ->whereIn('role', ['Admin', 'Employee', 'Partner'])
+            ->select('id', 'name', 'email', 'role')
+            ->orderBy('name', 'asc')
+            ->get();
+            
+        return response()->json($employees);
+    } catch (\Exception $e) {
+        \Log::error('Error fetching employees for tasks: ' . $e->getMessage());
+        return response()->json(['error' => 'Failed to fetch users'], 500);
+    }
+}
+
 }

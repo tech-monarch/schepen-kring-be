@@ -50,53 +50,54 @@ class TaskController extends Controller
     /**
      * Create a new task
      */
-    public function store(Request $request)
-    {
-        try {
-            $user = $request->user();
-            
-            if (!$user) {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
+// In TaskController.php, update the store method validation:
 
-            $validator = Validator::make($request->all(), [
-                'title' => 'required|string|max:255',
-                'description' => 'nullable|string',
-                'priority' => 'required|in:Low,Medium,High,Urgent,Critical',
-                'status' => 'required|in:To Do,In Progress,Done',
-                'assigned_to' => 'required_if:type,assigned|exists:users,id',
-                'yacht_id' => 'nullable|exists:yachts,id',
-                'due_date' => 'required|date',
-                'type' => 'required|in:assigned,personal',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
-
-            $data = $request->all();
-            $data['created_by'] = $user->id;
-            
-            // For personal tasks, set user_id to current user
-            if ($data['type'] === 'personal') {
-                $data['user_id'] = $user->id;
-                $data['assigned_to'] = $user->id;
-            }
-
-            // Ensure assigned_to is set for assigned tasks
-            if ($data['type'] === 'assigned' && !isset($data['assigned_to'])) {
-                return response()->json(['error' => 'Assigned tasks require an assignee'], 422);
-            }
-
-            $task = Task::create($data);
-
-            return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
-            
-        } catch (\Exception $e) {
-            \Log::error('Error creating task: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
+public function store(Request $request)
+{
+    try {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
         }
+
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'priority' => 'required|in:Low,Medium,High,Urgent,Critical',
+            'status' => 'required|in:To Do,In Progress,Done',
+            'assigned_to' => 'required_if:type,assigned|integer|exists:users,id',
+            'yacht_id' => 'nullable|integer|exists:yachts,id',
+            'due_date' => 'required|date',
+            'type' => 'required|in:assigned,personal',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $data = $request->all();
+        $data['created_by'] = $user->id;
+        
+        // Convert empty strings to null
+        $data['assigned_to'] = $data['assigned_to'] ? (int)$data['assigned_to'] : null;
+        $data['yacht_id'] = $data['yacht_id'] ? (int)$data['yacht_id'] : null;
+        
+        // For personal tasks, set user_id to current user
+        if ($data['type'] === 'personal') {
+            $data['user_id'] = $user->id;
+            $data['assigned_to'] = $user->id;
+        }
+
+        $task = Task::create($data);
+
+        return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
+        
+    } catch (\Exception $e) {
+        \Log::error('Error creating task: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error: ' . $e->getMessage()], 500);
     }
+}
 
     /**
      * Get a specific task

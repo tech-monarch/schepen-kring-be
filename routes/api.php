@@ -29,6 +29,11 @@ Route::post('/login', [UserController::class, 'login']);
 // Route::post('/register', [UserController::class, 'register']);
 // Route::post('/register/partner', [UserController::class, 'registerPartner']); // Make sure this is uncommented
 
+// In your routes file (api.php), add this before the protected routes:
+
+// PUBLIC USER ROUTE FOR TASK ASSIGNMENT
+Route::get('/public/users/employees', [UserController::class, 'getEmployeesForTasks']);
+
 // Direct Database Registration
 Route::post('/register/partner', [QuickAuthController::class, 'registerPartner']);
 Route::post('/register', [QuickAuthController::class, 'registerUser']);
