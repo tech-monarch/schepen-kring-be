@@ -302,4 +302,23 @@ public function impersonate(User $user)
         ]
     ]);
 }
+
+/**
+ * Get staff users for task assignment
+ */
+public function getStaff()
+{
+    try {
+        $staff = User::whereIn('role', ['Admin', 'Employee', 'Partner'])
+            ->where('status', 'Active')
+            ->orderBy('name', 'asc')
+            ->get(['id', 'name', 'email', 'role']);
+        
+        return response()->json($staff);
+    } catch (\Exception $e) {
+        \Log::error('Error fetching staff: ' . $e->getMessage());
+        return response()->json(['error' => 'Failed to fetch staff'], 500);
+    }
+}
+
 }
