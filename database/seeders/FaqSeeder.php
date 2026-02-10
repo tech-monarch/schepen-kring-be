@@ -1,5 +1,4 @@
 <?php
-// database/seeders/FaqSeeder.php
 
 namespace Database\Seeders;
 
