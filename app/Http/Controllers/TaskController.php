@@ -6,201 +6,358 @@ use App\Models\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class TaskController extends Controller
 {
     /**
-     * Display tasks based on user role and assignment
+     * Get tasks based on user role
      */
     public function index(Request $request)
     {
-        $user = $request->user();
-        
-        // If user is admin, return all tasks with assignments
-        if ($user->role === 'Admin') {
-            $tasks = Task::with(['assignedTo:id,name,email,role', 'yacht:id,name,vessel_id'])
-                ->orderBy('created_at', 'desc')
-                ->get();
-        } 
-        // If user is employee, return only their assigned tasks
-        else if ($user->role === 'Employee') {
-            $tasks = Task::with(['assignedTo:id,name,email,role', 'yacht:id,name,vessel_id'])
-                ->where('assigned_to', $user->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
-        }
-        // For customers or other roles, return empty or specific tasks
-        else {
-            $tasks = Task::with(['assignedTo:id,name,email,role', 'yacht:id,name,vessel_id'])
-                ->where('assigned_to', $user->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
-        }
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
 
-        return response()->json($tasks);
+            // Admin sees all tasks
+            if ($user->role === 'Admin') {
+                $tasks = Task::with(['assignedTo:id,name,email', 'yacht:id,name', 'creator:id,name'])
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } 
+            // Employee sees only their assigned tasks and personal tasks
+            else {
+                $tasks = Task::with(['assignedTo:id,name,email', 'yacht:id,name', 'creator:id,name'])
+                    ->where(function($query) use ($user) {
+                        $query->where('assigned_to', $user->id)
+                              ->orWhere('user_id', $user->id);
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            }
+
+            return response()->json($tasks);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error fetching tasks: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
     }
 
     /**
-     * Store a newly created task
+     * Create a new task
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'priority' => 'required|in:Low,Medium,High,Urgent',
-            'status' => 'required|in:To Do,In Progress,Done',
-            'assigned_to' => 'required|exists:users,id',
-            'yacht_id' => 'nullable|exists:yachts,id',
-            'due_date' => 'nullable|date',
-        ]);
-
-        // Verify assignment permission
-        $assignee = User::find($validated['assigned_to']);
-        if (!$assignee) {
-            return response()->json(['error' => 'Assignee not found'], 404);
-        }
-
-        // Ensure user can't assign to themselves if they're not admin?
-        // Or ensure employee can only create tasks for themselves?
-        $user = $request->user();
-        
-        // Log the task creation for audit
-        Log::info('Task created', [
-            'created_by' => $user->id,
-            'assigned_to' => $validated['assigned_to'],
-            'title' => $validated['title']
-        ]);
-
-        $task = Task::create($validated);
-
-        return response()->json($task->load(['assignedTo', 'yacht']), 201);
-    }
-
-    /**
-     * Display specific task with permission check
-     */
-    public function show(Request $request, Task $task)
-    {
-        $user = $request->user();
-        
-        // Check if user can view this task
-        if ($user->role !== 'Admin' && $task->assigned_to !== $user->id) {
-            return response()->json(['error' => 'Unauthorized to view this task'], 403);
-        }
-
-        return response()->json($task->load(['assignedTo', 'yacht']));
-    }
-
-    /**
-     * Update task with permission check
-     */
-    public function update(Request $request, Task $task)
-    {
-        $user = $request->user();
-        
-        // Check permission: Admin or assigned user can update
-        if ($user->role !== 'Admin' && $task->assigned_to !== $user->id) {
-            return response()->json(['error' => 'Unauthorized to update this task'], 403);
-        }
-
-        $validated = $request->validate([
-            'title' => 'sometimes|string|max:255',
-            'description' => 'nullable|string',
-            'priority' => 'sometimes|in:Low,Medium,High,Urgent',
-            'status' => 'sometimes|in:To Do,In Progress,Done',
-            'assigned_to' => 'sometimes|exists:users,id',
-            'yacht_id' => 'nullable|exists:yachts,id',
-            'due_date' => 'nullable|date',
-        ]);
-
-        // If changing assignment, verify new assignee exists
-        if (isset($validated['assigned_to']) && $validated['assigned_to'] != $task->assigned_to) {
-            $assignee = User::find($validated['assigned_to']);
-            if (!$assignee) {
-                return response()->json(['error' => 'New assignee not found'], 404);
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
             }
+
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'priority' => 'required|in:Low,Medium,High,Urgent,Critical',
+                'status' => 'required|in:To Do,In Progress,Done',
+                'assigned_to' => 'required_if:type,assigned|exists:users,id',
+                'yacht_id' => 'nullable|exists:yachts,id',
+                'due_date' => 'required|date',
+                'type' => 'required|in:assigned,personal',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $data = $request->all();
+            $data['created_by'] = $user->id;
+            
+            // For personal tasks, set user_id to current user
+            if ($data['type'] === 'personal') {
+                $data['user_id'] = $user->id;
+                $data['assigned_to'] = $user->id;
+            }
+
+            // Ensure assigned_to is set for assigned tasks
+            if ($data['type'] === 'assigned' && !isset($data['assigned_to'])) {
+                return response()->json(['error' => 'Assigned tasks require an assignee'], 422);
+            }
+
+            $task = Task::create($data);
+
+            return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error creating task: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
         }
-
-        $task->update($validated);
-
-        return response()->json($task->load(['assignedTo', 'yacht']));
     }
 
     /**
-     * Delete task with permission check
+     * Get a specific task
      */
-    public function destroy(Request $request, Task $task)
+    public function show($id)
     {
-        $user = $request->user();
-        
-        // Only admins can delete tasks
-        if ($user->role !== 'Admin') {
-            return response()->json(['error' => 'Only admins can delete tasks'], 403);
+        try {
+            $task = Task::with(['assignedTo', 'yacht', 'creator'])->find($id);
+            
+            if (!$task) {
+                return response()->json(['error' => 'Task not found'], 404);
+            }
+
+            $user = request()->user();
+            
+            // Check permissions
+            if ($user->role !== 'Admin' && 
+                $task->assigned_to !== $user->id && 
+                $task->user_id !== $user->id) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            return response()->json($task);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error fetching task: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
         }
-
-        $task->delete();
-
-        return response()->json([
-            'message' => 'Task successfully deleted.'
-        ], 200);
     }
 
     /**
-     * Fast status update with permission check
+     * Update a task
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $task = Task::find($id);
+            
+            if (!$task) {
+                return response()->json(['error' => 'Task not found'], 404);
+            }
+
+            // Check permissions
+            if ($user->role !== 'Admin' && 
+                $task->assigned_to !== $user->id && 
+                $task->user_id !== $user->id) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'title' => 'sometimes|string|max:255',
+                'description' => 'nullable|string',
+                'priority' => 'sometimes|in:Low,Medium,High,Urgent,Critical',
+                'status' => 'sometimes|in:To Do,In Progress,Done',
+                'assigned_to' => 'sometimes|exists:users,id',
+                'yacht_id' => 'nullable|exists:yachts,id',
+                'due_date' => 'sometimes|date',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Employees can only update status and their personal tasks
+            if ($user->role !== 'Admin' && $task->type === 'assigned') {
+                $request->merge(['status' => $request->input('status', $task->status)]);
+                // Only allow status update for assigned tasks
+                $task->update(['status' => $request->status]);
+            } else {
+                $task->update($request->all());
+            }
+
+            return response()->json($task->load(['assignedTo', 'yacht', 'creator']));
+            
+        } catch (\Exception $e) {
+            \Log::error('Error updating task: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+
+    /**
+     * Delete a task
+     */
+    public function destroy($id)
+    {
+        try {
+            $user = request()->user();
+            $task = Task::find($id);
+            
+            if (!$task) {
+                return response()->json(['error' => 'Task not found'], 404);
+            }
+
+            // Check permissions
+            if ($user->role !== 'Admin' && 
+                $task->user_id !== $user->id) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $task->delete();
+
+            return response()->json(['message' => 'Task deleted successfully']);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error deleting task: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+
+    /**
+     * Update task status
      */
     public function updateStatus(Request $request, $id)
     {
-        $request->validate([
-            'status' => 'required|in:To Do,In Progress,Done'
-        ]);
+        try {
+            $user = $request->user();
+            $task = Task::find($id);
+            
+            if (!$task) {
+                return response()->json(['error' => 'Task not found'], 404);
+            }
 
-        $task = Task::findOrFail($id);
-        $user = $request->user();
-        
-        // Check if user can update this task's status
-        if ($user->role !== 'Admin' && $task->assigned_to !== $user->id) {
-            return response()->json(['error' => 'Unauthorized to update this task'], 403);
+            // Check permissions
+            if ($user->role !== 'Admin' && 
+                $task->assigned_to !== $user->id && 
+                $task->user_id !== $user->id) {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'status' => 'required|in:To Do,In Progress,Done'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $task->update(['status' => $request->status]);
+
+            return response()->json($task);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error updating task status: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
         }
-
-        $task->update(['status' => $request->status]);
-
-        // Log status change
-        Log::info('Task status updated', [
-            'task_id' => $task->id,
-            'user_id' => $user->id,
-            'new_status' => $request->status
-        ]);
-
-        return response()->json($task);
     }
 
     /**
-     * Get tasks assigned to specific user (for admins)
-     */
-    public function getUserTasks($userId)
-    {
-        $tasks = Task::with(['assignedTo:id,name,email', 'yacht:id,name,vessel_id'])
-            ->where('assigned_to', $userId)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json($tasks);
-    }
-
-    /**
-     * Get current user's tasks (for employees)
+     * Get current user's tasks
      */
     public function myTasks(Request $request)
     {
-        $user = $request->user();
-        
-        $tasks = Task::with(['assignedTo:id,name,email', 'yacht:id,name,vessel_id'])
-            ->where('assigned_to', $user->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
 
-        return response()->json($tasks);
+            $tasks = Task::with(['assignedTo:id,name,email', 'yacht:id,name', 'creator:id,name'])
+                ->where(function($query) use ($user) {
+                    $query->where('assigned_to', $user->id)
+                          ->orWhere('user_id', $user->id);
+                })
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json($tasks);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error fetching user tasks: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+
+    /**
+     * Get tasks by user (for admin)
+     */
+    public function getUserTasks($userId)
+    {
+        try {
+            $user = request()->user();
+            
+            if (!$user || $user->role !== 'Admin') {
+                return response()->json(['error' => 'Unauthorized'], 403);
+            }
+
+            $tasks = Task::with(['assignedTo', 'yacht', 'creator'])
+                ->where('assigned_to', $userId)
+                ->orWhere('user_id', $userId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json($tasks);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error fetching user tasks: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+
+    /**
+     * Get tasks for calendar view
+     */
+    public function calendarTasks(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $start = $request->input('start');
+            $end = $request->input('end');
+            
+            if (!$user) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+
+            $query = Task::with(['assignedTo:id,name', 'yacht:id,name']);
+            
+            if ($user->role !== 'Admin') {
+                $query->where(function($q) use ($user) {
+                    $q->where('assigned_to', $user->id)
+                      ->orWhere('user_id', $user->id);
+                });
+            }
+
+            if ($start && $end) {
+                $query->whereBetween('due_date', [$start, $end]);
+            }
+
+            $tasks = $query->get()->map(function($task) {
+                return [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'start' => $task->due_date,
+                    'end' => $task->due_date ? (new \DateTime($task->due_date))->modify('+1 day')->format('Y-m-d') : null,
+                    'priority' => $task->priority,
+                    'status' => $task->status,
+                    'type' => $task->type,
+                    'assigned_to' => $task->assignedTo ? $task->assignedTo->name : null,
+                    'yacht' => $task->yacht ? $task->yacht->name : null,
+                    'color' => $this->getPriorityColor($task->priority),
+                ];
+            });
+
+            return response()->json($tasks);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error fetching calendar tasks: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal server error'], 500);
+        }
+    }
+
+    private function getPriorityColor($priority)
+    {
+        switch ($priority) {
+            case 'Critical': return '#dc2626';
+            case 'Urgent': return '#ea580c';
+            case 'High': return '#d97706';
+            case 'Medium': return '#3b82f6';
+            case 'Low': return '#6b7280';
+            default: return '#6b7280';
+        }
     }
 }

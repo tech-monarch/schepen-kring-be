@@ -11,13 +11,15 @@ class Task extends Model
     use HasFactory;
 
     protected $fillable = [
-        'title', 
-        'description', 
-        'priority', 
-        'status', 
-        'assigned_to', 
-        'yacht_id', 
+        'title',
+        'description',
+        'priority',
+        'status',
+        'assigned_to',
+        'yacht_id',
         'due_date',
+        'user_id',
+        'type',
         'created_by'
     ];
 
@@ -35,24 +37,34 @@ class Task extends Model
         return $this->belongsTo(Yacht::class);
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    // Helper methods
-    public function isAssignedTo(User $user): bool
+    // Scope for user's tasks
+    public function scopeForUser($query, $userId)
     {
-        return $this->assigned_to === $user->id;
+        return $query->where(function($q) use ($userId) {
+            $q->where('assigned_to', $userId)
+              ->orWhere('user_id', $userId);
+        });
     }
 
-    public function canBeViewedBy(User $user): bool
+    // Scope for personal tasks
+    public function scopePersonal($query)
     {
-        return $user->role === 'Admin' || $this->isAssignedTo($user);
+        return $query->where('type', 'personal');
     }
 
-    public function canBeUpdatedBy(User $user): bool
+    // Scope for assigned tasks
+    public function scopeAssigned($query)
     {
-        return $user->role === 'Admin' || $this->isAssignedTo($user);
+        return $query->where('type', 'assigned');
     }
 }

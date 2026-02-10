@@ -98,10 +98,23 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // TASK MANAGEMENT
-    Route::middleware('permission:manage tasks')->group(function () {
-        Route::apiResource('tasks', TaskController::class);
-        Route::patch('tasks/{id}/status', [TaskController::class, 'updateStatus']);
-    });
+
+    // Task routes
+    Route::get('/tasks', [TaskController::class, 'index']);
+    Route::get('/tasks/my', [TaskController::class, 'myTasks']);
+    Route::get('/tasks/calendar', [TaskController::class, 'calendarTasks']);
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::get('/tasks/{id}', [TaskController::class, 'show']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+    
+    // Admin only - get tasks by user
+    Route::get('/users/{userId}/tasks', [TaskController::class, 'getUserTasks'])
+        ->middleware('permission:manage tasks');
+    
+    // User and Yacht routes (for dropdowns)
+    Route::get('/users/staff', [UserController::class, 'getStaff']);
 
     // USER MANAGEMENT
     Route::middleware('permission:manage users')->group(function () {
