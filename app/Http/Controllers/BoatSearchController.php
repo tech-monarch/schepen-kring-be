@@ -14,10 +14,15 @@ class BoatSearchController extends Controller
             'query' => 'required|string|max:255',
         ]);
 
-        $pythonCommand = (PHP_OS_FAMILY === 'Windows') ? 'python' : 'python3';
+        // Use venv on VPS, global python on Windows
+        if (PHP_OS_FAMILY === 'Windows') {
+            $pythonPath = 'python';
+        } else {
+            $pythonPath = base_path('venv/bin/python');
+        }
 
         $process = new Process([
-            $pythonCommand,
+            $pythonPath,
             app_path('Scripts/pinecone_search.py'),
             env('GEMINI_API_KEY'),
             env('PINECONE_API_KEY'),
@@ -25,6 +30,7 @@ class BoatSearchController extends Controller
             $request->query('query')
         ]);
 
+        $process->setTimeout(60);
         $process->run();
 
         if ($process->isSuccessful()) {

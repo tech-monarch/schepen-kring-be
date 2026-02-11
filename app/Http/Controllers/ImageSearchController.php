@@ -18,11 +18,17 @@ class ImageSearchController extends Controller
         $path = $request->file('image')->store('temp_search', 'public');
         $fullPath = storage_path("app/public/" . $path);
 
-        $python = (PHP_OS_FAMILY === 'Windows') ? 'python' : 'python3';
+        // 2. Determine Python path (Local Windows vs VPS Virtual Env)
+        if (PHP_OS_FAMILY === 'Windows') {
+            $pythonPath = 'python';
+        } else {
+            // Point to the venv we created on the VPS
+            $pythonPath = base_path('venv/bin/python');
+        }
 
-        // 2. Run the search script
+        // 3. Run the search script
         $process = new Process([
-            $python,
+            $pythonPath,
             app_path('Scripts/image_to_image.py'),
             env('GEMINI_API_KEY'),
             env('PINECONE_API_KEY'),
@@ -30,10 +36,13 @@ class ImageSearchController extends Controller
             $fullPath
         ]);
 
+        $process->setTimeout(60);
         $process->run();
 
-        // 3. Delete the temporary search image
-        unlink($fullPath);
+        // 4. Delete the temporary search image
+        if (file_exists($fullPath)) {
+            unlink($fullPath);
+        }
 
         if ($process->isSuccessful()) {
             return response()->json([
@@ -42,6 +51,10 @@ class ImageSearchController extends Controller
             ]);
         }
 
-        return response()->json(['error' => $process->getErrorOutput()], 500);
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Image search failed',
+            'details' => $process->getErrorOutput()
+        ], 500);
     }
 }

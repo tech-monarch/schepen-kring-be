@@ -13,28 +13,30 @@ class ImageUploadController extends Controller
     {
         // 1. Validate the incoming request
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg|max:10240', // Increased to 10MB for high-res boat photos
+            'image' => 'required|image|mimes:jpeg,png,jpg|max:10240', 
         ]);
 
         if ($request->hasFile('image')) {
             $file = $request->file('image');
             
             // 2. Store the file in storage/app/public/boats
-            // We use a timestamp to prevent overwriting files with the same name
             $fileName = time() . '_' . $file->getClientOriginalName();
             $path = $file->storeAs('boats', $fileName, 'public');
             
             $fullPath = storage_path("app/public/" . $path);
-            
-            // Ensure we generate the correct URL for the Pinecone metadata
             $publicUrl = asset("storage/" . $path);
 
-            // 3. Determine Python command (Windows uses 'python', VPS/Linux usually uses 'python3')
-            $pythonCommand = (PHP_OS_FAMILY === 'Windows') ? 'python' : 'python3';
+            // 3. Determine Python path (Local Windows vs VPS Virtual Env)
+            if (PHP_OS_FAMILY === 'Windows') {
+                $pythonPath = 'python';
+            } else {
+                // Point to the venv we created on the VPS
+                $pythonPath = base_path('venv/bin/python');
+            }
 
             // 4. Trigger the Python script immediately
             $process = new Process([
-                $pythonCommand,
+                $pythonPath,
                 app_path('Scripts/pinecone_sync.py'),
                 env('GEMINI_API_KEY'),
                 env('PINECONE_API_KEY'),
@@ -43,8 +45,7 @@ class ImageUploadController extends Controller
                 $publicUrl
             ]);
 
-            // Set a longer timeout (Gemini embedding can take a few seconds)
-            $process->setTimeout(60);
+            $process->setTimeout(90); // Slightly longer for uploads
             $process->run();
 
             // 5. Response handling
@@ -60,7 +61,6 @@ class ImageUploadController extends Controller
                 ], 200);
             }
 
-            // If Python failed, we still have the image, but tell the user the sync failed
             return response()->json([
                 'status' => 'partial_success',
                 'message' => 'Image saved locally, but Pinecone sync failed.',

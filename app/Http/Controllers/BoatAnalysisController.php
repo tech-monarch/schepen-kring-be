@@ -12,10 +12,15 @@ class BoatAnalysisController extends Controller
     {
         $request->validate(['query' => 'required|string']);
 
-        $python = (PHP_OS_FAMILY === 'Windows') ? 'python' : 'python3';
+        // Use venv on VPS, global python on Windows
+        if (PHP_OS_FAMILY === 'Windows') {
+            $pythonPath = 'python';
+        } else {
+            $pythonPath = base_path('venv/bin/python');
+        }
 
         $process = new Process([
-            $python,
+            $pythonPath,
             app_path('Scripts/boat_analysis.py'),
             env('GEMINI_API_KEY'),
             env('PINECONE_API_KEY'),
@@ -23,13 +28,18 @@ class BoatAnalysisController extends Controller
             $request->input('query')
         ]);
 
-        $process->setTimeout(120); // Analyzing images takes time
+        // Analyzing multiple images and generating a response takes longer
+        $process->setTimeout(180); 
         $process->run();
 
         if ($process->isSuccessful()) {
             return response()->json(json_decode($process->getOutput()));
         }
 
-        return response()->json(['error' => $process->getErrorOutput()], 500);
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Analysis failed',
+            'error' => $process->getErrorOutput()
+        ], 500);
     }
 }
