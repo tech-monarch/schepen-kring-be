@@ -128,13 +128,47 @@ class BidController extends Controller
         return response()->json(['message' => 'Bid declined.']);
     }
 
-    public function index(Request $request)
+        
+public function index(Request $request)
 {
-    $bids = Bid::with(['user:id,name', 'yacht:id,boat_name,vessel_id,main_image,status,current_bid,price'])
-        ->orderBy('created_at', 'desc')
-        ->paginate(20); // or simple pagination
+    try {
+        $bids = Bid::with(['user:id,name', 'yacht'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
 
-    return response()->json($bids);
+        // Transform yacht data – safely handle missing columns
+        $bids->getCollection()->transform(function ($bid) {
+            $yacht = $bid->yacht;
+            
+            // If for some reason the yacht is missing, provide empty object
+            if (!$yacht) {
+                $bid->yacht = null;
+                return $bid;
+            }
+
+            $bid->yacht = [
+                'id'          => $yacht->id,
+                'boat_name'   => $yacht->boat_name ?? $yacht->name ?? 'Onbekend',
+                'vessel_id'   => $yacht->vessel_id ?? $yacht->id,
+                'main_image'  => $yacht->main_image ?? $yacht->main_image_url ?? null,
+                'status'      => $yacht->status ?? 'Unknown',
+                'current_bid' => $yacht->current_bid,
+                'price'       => $yacht->price ?? 0,
+            ];
+            return $bid;
+        });
+
+        return response()->json($bids);
+
+    } catch (\Exception $e) {
+        // Return the actual error so you can fix it immediately
+        return response()->json([
+            'error'   => $e->getMessage(),
+            'file'    => $e->getFile(),
+            'line'    => $e->getLine(),
+            'trace'   => $e->getTraceAsString()
+        ], 500);
+    }
 }
 
 }
