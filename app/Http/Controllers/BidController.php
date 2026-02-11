@@ -127,4 +127,14 @@ class BidController extends Controller
 
         return response()->json(['message' => 'Bid declined.']);
     }
+
+    public function index(Request $request)
+{
+    $bids = Bid::with(['user:id,name', 'yacht:id,boat_name,vessel_id,main_image,status,current_bid,price'])
+        ->orderBy('created_at', 'desc')
+        ->paginate(20); // or simple pagination
+
+    return response()->json($bids);
+}
+
 }
