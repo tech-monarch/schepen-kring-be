@@ -19,6 +19,18 @@ use App\Http\Controllers\ActivityLogController; // Add this
 use App\Http\Controllers\NotificationController; // Add this
 use App\Http\Controllers\FaqController; // Add this
 use App\Http\Controllers\SystemLogController;
+use App\Http\Controllers\ImageUploadController;
+use App\Http\Controllers\BoatSearchController;
+use App\Http\Controllers\BoatAnalysisController;
+use App\Http\Controllers\ImageSearchController;
+
+Route::post('/search-by-image', [ImageSearchController::class, 'searchByImage']);
+
+Route::post('/analyze-boat', [BoatAnalysisController::class, 'identify']);
+
+Route::get('/search-boats', [BoatSearchController::class, 'search']);
+
+Route::post('/upload-boat', [ImageUploadController::class, 'upload']);
 /*
 |--------------------------------------------------------------------------
 | API Routes
