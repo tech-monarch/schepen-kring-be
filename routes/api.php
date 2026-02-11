@@ -23,6 +23,9 @@ use App\Http\Controllers\ImageUploadController;
 use App\Http\Controllers\BoatSearchController;
 use App\Http\Controllers\BoatAnalysisController;
 use App\Http\Controllers\ImageSearchController;
+use App\Http\Controllers\SyncController;
+
+Route::post('/sync-remaining', [SyncController::class, 'retry']);
 
 Route::post('/search-by-image', [ImageSearchController::class, 'searchByImage']);
 
