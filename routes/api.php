@@ -124,7 +124,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('bids', [BidController::class, 'index']); 
 
     // TASK MANAGEMENT
-
+Route::get('/user', [UserController::class, 'currentUser']);
     // Task routes
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/my', [TaskController::class, 'myTasks']);

@@ -342,5 +342,25 @@ public function getEmployeesForTasks()
         return response()->json(['error' => 'Failed to fetch users'], 500);
     }
 }
-
+/**
+ * Get the currently authenticated user.
+ */
+public function currentUser(Request $request)
+{
+    $user = $request->user();
+    
+    // Eager load permissions if needed by frontend
+    $user->load('permissions');
+    
+    return response()->json([
+        'id' => $user->id,
+        'name' => $user->name,
+        'email' => $user->email,
+        'role' => $user->role,
+        'status' => $user->status,
+        'access_level' => $user->access_level,
+        'partner_token' => $user->partner_token,
+        'permissions' => $user->getPermissionNames(),
+    ]);
+}
 }
