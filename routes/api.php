@@ -24,6 +24,7 @@ use App\Http\Controllers\BoatSearchController;
 use App\Http\Controllers\BoatAnalysisController;
 use App\Http\Controllers\ImageSearchController;
 use App\Http\Controllers\SyncController;
+use App\Http\Controllers\PartnerPublicController;
 
 Route::post('/sync-remaining', [SyncController::class, 'retry']);
 
@@ -39,6 +40,8 @@ Route::post('/upload-boat', [ImageUploadController::class, 'upload']);
 | API Routes
 |--------------------------------------------------------------------------
 */
+
+Route::get('/partner-fleet/{token}', [PartnerPublicController::class, 'showFleet']);
 
 // AUTH & REGISTRATION
 Route::post('/login', [UserController::class, 'login']);

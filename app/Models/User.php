@@ -111,4 +111,31 @@ public function getPagePermission($pageKey)
         return $this->unreadNotifications()->count();
     }
 
+
+
+    protected static function booted()
+{
+    static::creating(function ($user) {
+        // Automatically assign token if role is Partner
+        if ($user->role === 'Partner' && empty($user->partner_token)) {
+            $user->partner_token = self::generateUniquePartnerToken();
+        }
+    });
+
+    static::updating(function ($user) {
+        // If role changes to Partner and no token exists, generate one
+        if ($user->isDirty('role') && $user->role === 'Partner' && empty($user->partner_token)) {
+            $user->partner_token = self::generateUniquePartnerToken();
+        }
+    });
+}
+
+private static function generateUniquePartnerToken(): string
+{
+    do {
+        $token = Str::random(32);
+    } while (User::where('partner_token', $token)->exists());
+    
+    return $token;
+}
 }
