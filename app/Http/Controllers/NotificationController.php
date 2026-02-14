@@ -6,87 +6,194 @@ use App\Models\Notification;
 use App\Models\UserNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
     public function index(Request $request)
     {
-        $user = Auth::user();
-        
-        // Users can only see their own notifications
-        $query = $user->notifications()
-            ->with('notification')
-            ->orderBy('user_notifications.created_at', 'desc');
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            // FIXED: Query UserNotification directly instead of $user->notifications()
+            $query = UserNotification::where('user_id', $user->id)
+                ->with('notification')
+                ->orderBy('created_at', 'desc');
 
-        // Filter by read status
-        if ($request->has('read')) {
-            $query->where('read', filter_var($request->read, FILTER_VALIDATE_BOOLEAN));
+            // Filter by read status
+            if ($request->has('read')) {
+                $query->where('read', filter_var($request->read, FILTER_VALIDATE_BOOLEAN));
+            }
+
+            $perPage = $request->get('per_page', 20);
+            $notifications = $query->paginate($perPage);
+
+            // Get unread count
+            $unreadCount = UserNotification::where('user_id', $user->id)
+                ->where('read', false)
+                ->count();
+
+            return response()->json([
+                'data' => $notifications->items(),
+                'meta' => [
+                    'current_page' => $notifications->currentPage(),
+                    'last_page' => $notifications->lastPage(),
+                    'per_page' => $notifications->perPage(),
+                    'total' => $notifications->total(),
+                    'unread_count' => $unreadCount
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching notifications: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to fetch notifications',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        $perPage = $request->get('per_page', 20);
-        $notifications = $query->paginate($perPage);
-
-        return response()->json([
-            'data' => $notifications->items(),
-            'meta' => [
-                'current_page' => $notifications->currentPage(),
-                'last_page' => $notifications->lastPage(),
-                'per_page' => $notifications->perPage(),
-                'total' => $notifications->total(),
-                'unread_count' => $user->unread_notifications_count
-            ]
-        ]);
     }
 
     public function markAsRead($id)
     {
-        // User can only mark their own notifications as read
-        $userNotification = UserNotification::where('user_id', Auth::id())
-            ->where('id', $id)
-            ->firstOrFail();
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $userNotification = UserNotification::where('user_id', $user->id)
+                ->where('id', $id)
+                ->first();
 
-        $userNotification->markAsRead();
+            if (!$userNotification) {
+                return response()->json([
+                    'error' => 'Not found',
+                    'message' => 'Notification not found'
+                ], 404);
+            }
 
-        return response()->json([
-            'message' => 'Notification marked as read'
-        ]);
+            $userNotification->markAsRead();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notification marked as read'
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error marking notification as read: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to mark notification as read',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function markAllAsRead()
     {
-        // User can only mark their own notifications as read
-        UserNotification::where('user_id', Auth::id())
-            ->where('read', false)
-            ->update([
-                'read' => true,
-                'read_at' => now()
-            ]);
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $updated = UserNotification::where('user_id', $user->id)
+                ->where('read', false)
+                ->update([
+                    'read' => true,
+                    'read_at' => now()
+                ]);
 
-        return response()->json([
-            'message' => 'All notifications marked as read'
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'All notifications marked as read',
+                'count' => $updated
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error marking all notifications as read: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to mark all notifications as read',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function getUnreadCount()
     {
-        $count = Auth::user()->unread_notifications_count;
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $count = UserNotification::where('user_id', $user->id)
+                ->where('read', false)
+                ->count();
 
-        return response()->json([
-            'count' => $count
-        ]);
+            return response()->json([
+                'count' => $count
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching unread count: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to fetch unread count',
+                'message' => $e->getMessage(),
+                'count' => 0
+            ], 500);
+        }
     }
 
     public function delete($id)
     {
-        // User can only delete their own notifications
-        $userNotification = UserNotification::where('user_id', Auth::id())
-            ->where('id', $id)
-            ->firstOrFail();
+        try {
+            $user = Auth::user();
+            
+            if (!$user) {
+                return response()->json([
+                    'error' => 'Unauthorized',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $userNotification = UserNotification::where('user_id', $user->id)
+                ->where('id', $id)
+                ->first();
 
-        $userNotification->delete();
+            if (!$userNotification) {
+                return response()->json([
+                    'error' => 'Not found',
+                    'message' => 'Notification not found'
+                ], 404);
+            }
 
-        return response()->json([
-            'message' => 'Notification deleted'
-        ]);
+            $userNotification->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notification deleted'
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error deleting notification: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to delete notification',
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }
