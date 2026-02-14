@@ -248,3 +248,31 @@ Route::prefix('system-logs')->group(function () {
     // Optional: Add rate limiting for cleanup endpoint
     Route::middleware('throttle:1,1440')->delete('/cleanup', [SystemLogController::class, 'cleanup']);
 });
+
+
+// routes/api.php
+
+use App\Http\Controllers\PartnerUserController;
+
+// Public routes (if any)...
+
+// Protected routes (must be logged in)
+Route::middleware('auth:sanctum')->group(function () {
+
+    // ================== PARTNER USER MANAGEMENT ==================
+    Route::prefix('partner')->group(function () {
+        Route::get('/users', [PartnerUserController::class, 'index']);
+        Route::post('/users', [PartnerUserController::class, 'store']);
+        Route::get('/users/{id}', [PartnerUserController::class, 'show']);
+        Route::put('/users/{id}', [PartnerUserController::class, 'update']);
+        Route::delete('/users/{id}', [PartnerUserController::class, 'destroy']);
+    });
+
+    // ================== PAGE PERMISSIONS ==================
+    Route::get('/users/{user}/page-permissions', [PagePermissionController::class, 'getUserPermissions']);
+    Route::post('/users/{user}/page-permissions/update', [PagePermissionController::class, 'updatePermission']);
+    Route::post('/users/{user}/page-permissions/bulk-update', [PagePermissionController::class, 'bulkUpdate']);
+    Route::post('/users/{user}/page-permissions/reset', [PagePermissionController::class, 'resetPermissions']);
+
+    // ... other existing routes (tasks, yachts, etc.)
+});

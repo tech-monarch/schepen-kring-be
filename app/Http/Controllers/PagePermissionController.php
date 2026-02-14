@@ -9,6 +9,26 @@ use Illuminate\Http\Request;
 
 class PagePermissionController extends Controller
 {
+
+    // Add this method at the top
+private function authorizeUserAccess($userId)
+{
+    $currentUser = auth()->user();
+    $targetUser = User::findOrFail($userId);
+
+    // Admin can access any user
+    if ($currentUser->role === 'Admin') {
+        return;
+    }
+
+    // Partner can only access users with partner_id == their own id
+    if ($currentUser->role === 'Partner' && $targetUser->partner_id === $currentUser->id) {
+        return;
+    }
+
+    abort(403, 'Unauthorized access to user permissions.');
+}
+
     // Get all page permissions (for dropdown/listing)
     public function index()
     {
@@ -19,6 +39,9 @@ class PagePermissionController extends Controller
     // Get user's specific permissions
     public function getUserPermissions($userId)
     {
+
+        
+    $this->authorizeUserAccess($userId); 
         $permissions = UserPagePermission::where('user_id', $userId)
             ->with('page')
             ->get()

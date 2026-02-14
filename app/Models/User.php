@@ -37,6 +37,7 @@ protected $fillable = [
     'state',
         'postcode',
         'country',
+    'partner_id',
 ];
 
     public function tasks() {
@@ -138,5 +139,18 @@ private static function generateUniquePartnerToken(): string
     } while (User::where('partner_token', $token)->exists());
     
     return $token;
+}
+
+
+// Relationship: the partner who owns this user
+public function partner()
+{
+    return $this->belongsTo(User::class, 'partner_id');
+}
+
+// Relationship: users owned by this partner
+public function ownedUsers()
+{
+    return $this->hasMany(User::class, 'partner_id');
 }
 }
