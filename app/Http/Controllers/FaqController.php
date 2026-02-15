@@ -292,6 +292,21 @@ private function createEmbedding($text)
     return $response->json('embedding.values') ?? null;
 }
 
+public function storeDummy()
+{
+    $faq = Faq::create([
+        'question' => 'What yachts are available?',
+        'answer' => 'We have sailing yachts, motor yachts, and luxury yachts.',
+        'category' => 'Yachts'
+    ]);
+
+    $this->trainGemini();
+
+    return response()->json([
+        'message' => 'Dummy FAQ added',
+        'faq' => $faq
+    ]);
+}
 
 
     // Train Gemini with all Faqs (Admin function)

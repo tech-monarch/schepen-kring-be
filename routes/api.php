@@ -245,6 +245,8 @@ Route::get('/faqs/test-gemini', function () {
 
     return $controller->askGemini($request);
 });
+// Temporary testing route (no auth)
+Route::post('/faqs/test-dummy', [FaqController::class, 'storeDummy']);
 
 
 // Public routes (no authentication required)
