@@ -144,18 +144,46 @@ public function askGemini(Request $request)
     $model  = "gemini-2.5-flash";
 
     try {
-        // Step 1: Gather all FAQ info (or top 5 via embedding)
+        // STEP 1: Try to get top FAQs via embeddings
+        $embedding = $this->createEmbedding($request->question);
         $faqs = Faq::whereNotNull('embedding')->get();
-        $context = "You are a helpful maritime assistant for Schepen Kring.\n";
-        $context .= "Use the FAQ information below to help answer any user question, but answer even if the question is not an exact match.\n\n";
+        $topFaqs = collect();
 
-        foreach ($faqs as $faq) {
+        if ($embedding) {
+            $topFaqs = $faqs->map(function ($faq) use ($embedding) {
+                $faqEmbedding = json_decode($faq->embedding, true);
+                if (!$faqEmbedding) return null;
+
+                $dot = $normA = $normB = 0;
+                foreach ($embedding as $i => $val) {
+                    $dot += $val * ($faqEmbedding[$i] ?? 0);
+                    $normA += $val * $val;
+                    $normB += ($faqEmbedding[$i] ?? 0) ** 2;
+                }
+
+                $similarity = $dot / (sqrt($normA) * sqrt($normB) + 1e-10);
+                return ['faq' => $faq, 'score' => $similarity];
+            })->filter()->sortByDesc('score')->take(5);
+        }
+
+        // STEP 2: If no embeddings match or low confidence, fallback to all FAQs
+        if ($topFaqs->isEmpty()) {
+            $faqs = Faq::all();
+            $topFaqs = $faqs->map(fn($faq) => ['faq' => $faq, 'score' => 0.5]);
+        }
+
+        // STEP 3: Build context from top FAQs
+        $context = "You are a helpful maritime assistant for Schepen Kring.\n";
+        $context .= "Answer clearly using the FAQ information below, but answer even if the question does not exactly match the stored questions.\n\n";
+
+        foreach ($topFaqs as $item) {
+            $faq = $item['faq'];
             $context .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
         }
 
         $context .= "User question: {$request->question}";
 
-        // Step 2: Call Gemini generateContent API
+        // STEP 4: Call Gemini API
         $body = [
             "contents" => [
                 [
@@ -184,7 +212,7 @@ public function askGemini(Request $request)
 
         return response()->json([
             'answer' => $answer ? trim($answer) : "I don’t have specific information about that yet. Please contact support.",
-            'sources' => $faqs->count(),
+            'sources' => $topFaqs->count(),
             'timestamp' => now()
         ]);
 
@@ -197,6 +225,7 @@ public function askGemini(Request $request)
         ]);
     }
 }
+
 
 
 // Embedding function rewritten to use generateContent properly
