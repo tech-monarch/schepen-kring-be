@@ -140,154 +140,112 @@ public function askGemini(Request $request)
         'question' => 'required|string|max:500'
     ]);
 
-    $apiKey = "AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I";
+    $apiKey = env('GOOGLE_API_KEY'); // store securely in .env
     $model  = "gemini-2.5-flash";
 
     try {
+        $context = "You are a helpful maritime assistant for Schepen Kring.\n";
+        $context .= "Answer only using the FAQ information below.\n\n";
 
-        /** ================================
-         * STEP 1 — TRY VECTOR SEARCH FIRST
-         * ================================= */
-        $queryEmbedding = $this->createEmbedding($request->question);
-
+        // Step 1: Attempt vector search
+        $embedding = $this->createEmbedding($request->question);
+        $faqs = Faq::whereNotNull('embedding')->get();
         $topFaqs = collect();
 
-        if ($queryEmbedding) {
-            $faqs = Faq::whereNotNull('embedding')->get();
-
-            $topFaqs = $faqs->map(function ($faq) use ($queryEmbedding) {
-
+        if ($embedding) {
+            $topFaqs = $faqs->map(function ($faq) use ($embedding) {
                 $faqEmbedding = json_decode($faq->embedding, true);
-
                 if (!$faqEmbedding) return null;
-
-                $dot = 0;
-                $normA = 0;
-                $normB = 0;
-
-                foreach ($queryEmbedding as $i => $val) {
+                $dot = $normA = $normB = 0;
+                foreach ($embedding as $i => $val) {
                     $dot += $val * ($faqEmbedding[$i] ?? 0);
                     $normA += $val * $val;
-                    $normB += ($faqEmbedding[$i] ?? 0) * ($faqEmbedding[$i] ?? 0);
+                    $normB += ($faqEmbedding[$i] ?? 0) ** 2;
                 }
-
                 $similarity = $dot / (sqrt($normA) * sqrt($normB) + 1e-10);
-
-                return [
-                    "faq" => $faq,
-                    "score" => $similarity
-                ];
-            })
-            ->filter()
-            ->sortByDesc("score")
-            ->take(5);
+                return ['faq' => $faq, 'score' => $similarity];
+            })->filter()->sortByDesc('score')->take(5);
         }
 
-        /** =====================================
-         * STEP 2 — FALLBACK TO DIRECT FAQ SEARCH
-         * ====================================== */
+        // Step 2: Fallback to keyword search
         if ($topFaqs->isEmpty()) {
-
-            $keywordFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
-                ->orWhere('answer', 'like', '%' . $request->question . '%')
-                ->limit(5)
-                ->get();
-
+            $keywordFaqs = Faq::where('question', 'like', "%{$request->question}%")
+                ->orWhere('answer', 'like', "%{$request->question}%")
+                ->limit(5)->get();
             if ($keywordFaqs->isNotEmpty()) {
-                $topFaqs = $keywordFaqs->map(fn($faq) => ["faq" => $faq, "score" => 0.5]);
+                $topFaqs = $keywordFaqs->map(fn($faq) => ['faq' => $faq, 'score' => 0.5]);
             }
         }
 
-        /** =====================================
-         * STEP 3 — IF STILL EMPTY → HARD FALLBACK
-         * ====================================== */
         if ($topFaqs->isEmpty()) {
             return response()->json([
-                "answer" => "I don’t have specific information about that yet. Please contact our support team for assistance.",
-                "sources" => 0,
-                "timestamp" => now()->toDateTimeString()
+                'answer' => "I don’t have specific information about that yet. Please contact support.",
+                'sources' => 0,
+                'timestamp' => now()
             ]);
         }
 
-        /** =====================================
-         * STEP 4 — BUILD CONTEXT FROM FOUND FAQS
-         * ====================================== */
-        $context = "You are a helpful maritime assistant for Schepen Kring.\n";
-        $context .= "Answer ONLY using the FAQ information below.\n\n";
-
         foreach ($topFaqs as $item) {
-            $faq = $item["faq"];
+            $faq = $item['faq'];
             $context .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
         }
-
         $context .= "User question: {$request->question}";
 
-        /** =====================================
-         * STEP 5 — ASK GEMINI
-         * ====================================== */
+        // Step 3: Call Gemini
         $response = Http::timeout(30)->post(
-            "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
+            "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateText?key={$apiKey}",
             [
-                "contents" => [
-                    [
-                        "parts" => [
-                            ["text" => $context]
-                        ]
-                    ]
-                ],
-                "generationConfig" => [
-                    "temperature" => 0.3,
-                    "maxOutputTokens" => 800
-                ]
+                "prompt" => $context,
+                "temperature" => 0.3,
+                "maxOutputTokens" => 800
             ]
         );
 
         if ($response->failed()) {
-            throw new \Exception("Gemini failed: " . $response->body());
+            Log::error("Gemini failed: " . $response->body());
+            throw new \Exception("Gemini request failed");
         }
 
-        $answer = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+        $answer = $response->json('candidates.0.content') ?? null;
 
         if (!$answer) {
-            throw new \Exception("Invalid Gemini response");
+            throw new \Exception("Gemini returned no answer");
         }
 
         return response()->json([
-            "answer" => trim($answer),
-            "sources" => $topFaqs->count(),
-            "timestamp" => now()->toDateTimeString()
+            'answer' => trim($answer),
+            'sources' => $topFaqs->count(),
+            'timestamp' => now()
         ]);
 
     } catch (\Throwable $e) {
+        Log::error("askGemini error: " . $e->getMessage());
 
-        Log::error("RAG error: " . $e->getMessage());
-
-        /** FINAL SAFETY FALLBACK **/
-        $fallbackFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
-            ->orWhere('answer', 'like', '%' . $request->question . '%')
-            ->limit(3)
-            ->get();
+        // Final fallback: return relevant FAQs
+        $fallbackFaqs = Faq::where('question', 'like', "%{$request->question}%")
+            ->orWhere('answer', 'like', "%{$request->question}%")
+            ->limit(3)->get();
 
         if ($fallbackFaqs->isNotEmpty()) {
             $text = "Here are some related FAQs:\n\n";
             foreach ($fallbackFaqs as $faq) {
                 $text .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
             }
-
             return response()->json([
-                "answer" => $text,
-                "sources" => $fallbackFaqs->count(),
-                "timestamp" => now()->toDateTimeString()
+                'answer' => $text,
+                'sources' => $fallbackFaqs->count(),
+                'timestamp' => now()
             ]);
         }
 
         return response()->json([
-            "answer" => "Our AI assistant is temporarily unavailable. Please contact support.",
-            "sources" => 0,
-            "timestamp" => now()->toDateTimeString()
+            'answer' => "Our AI assistant is temporarily unavailable. Please contact support.",
+            'sources' => 0,
+            'timestamp' => now()
         ]);
     }
 }
+
 
 
 
