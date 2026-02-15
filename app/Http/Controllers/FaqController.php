@@ -140,14 +140,14 @@ public function askGemini(Request $request)
         'question' => 'required|string|max:500'
     ]);
 
-    $apiKey = env('GOOGLE_API_KEY'); // store securely in .env
+    $apiKey = env('GOOGLE_API_KEY'); // store in .env
     $model  = "gemini-2.5-flash";
 
     try {
         $context = "You are a helpful maritime assistant for Schepen Kring.\n";
-        $context .= "Answer only using the FAQ information below.\n\n";
+        $context .= "Answer clearly using only the FAQ information below.\n\n";
 
-        // Step 1: Attempt vector search
+        // STEP 1: Vector search for relevant FAQs
         $embedding = $this->createEmbedding($request->question);
         $faqs = Faq::whereNotNull('embedding')->get();
         $topFaqs = collect();
@@ -156,22 +156,25 @@ public function askGemini(Request $request)
             $topFaqs = $faqs->map(function ($faq) use ($embedding) {
                 $faqEmbedding = json_decode($faq->embedding, true);
                 if (!$faqEmbedding) return null;
+
                 $dot = $normA = $normB = 0;
                 foreach ($embedding as $i => $val) {
                     $dot += $val * ($faqEmbedding[$i] ?? 0);
                     $normA += $val * $val;
                     $normB += ($faqEmbedding[$i] ?? 0) ** 2;
                 }
+
                 $similarity = $dot / (sqrt($normA) * sqrt($normB) + 1e-10);
                 return ['faq' => $faq, 'score' => $similarity];
             })->filter()->sortByDesc('score')->take(5);
         }
 
-        // Step 2: Fallback to keyword search
+        // STEP 2: Fallback to keyword search if needed
         if ($topFaqs->isEmpty()) {
             $keywordFaqs = Faq::where('question', 'like', "%{$request->question}%")
                 ->orWhere('answer', 'like', "%{$request->question}%")
                 ->limit(5)->get();
+
             if ($keywordFaqs->isNotEmpty()) {
                 $topFaqs = $keywordFaqs->map(fn($faq) => ['faq' => $faq, 'score' => 0.5]);
             }
@@ -185,20 +188,31 @@ public function askGemini(Request $request)
             ]);
         }
 
+        // Build the context from top FAQs
         foreach ($topFaqs as $item) {
             $faq = $item['faq'];
             $context .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
         }
         $context .= "User question: {$request->question}";
 
-        // Step 3: Call Gemini
-        $response = Http::timeout(30)->post(
-            "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateText?key={$apiKey}",
-            [
-                "prompt" => $context,
+        // STEP 3: Call Gemini generateContent API
+        $body = [
+            "contents" => [
+                [
+                    "parts" => [
+                        ["text" => $context]
+                    ]
+                ]
+            ],
+            "generationConfig" => [
                 "temperature" => 0.3,
                 "maxOutputTokens" => 800
             ]
+        ];
+
+        $response = Http::timeout(30)->post(
+            "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
+            $body
         );
 
         if ($response->failed()) {
@@ -206,7 +220,7 @@ public function askGemini(Request $request)
             throw new \Exception("Gemini request failed");
         }
 
-        $answer = $response->json('candidates.0.content') ?? null;
+        $answer = $response->json('candidates.0.content.0.text') ?? null;
 
         if (!$answer) {
             throw new \Exception("Gemini returned no answer");
@@ -246,20 +260,16 @@ public function askGemini(Request $request)
     }
 }
 
-
-
-
+// Embedding function remains unchanged
 private function createEmbedding($text)
 {
-    $apiKey = "AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I";
+    $apiKey = env('GOOGLE_API_KEY');
 
     $response = Http::post(
         "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={$apiKey}",
         [
             "content" => [
-                "parts" => [
-                    ["text" => $text]
-                ]
+                ["parts" => [["text" => $text]]]
             ]
         ]
     );
