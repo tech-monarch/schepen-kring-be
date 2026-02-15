@@ -140,51 +140,81 @@ public function askGemini(Request $request)
         'question' => 'required|string|max:500'
     ]);
 
-    $apiKey = env('GOOGLE_API_KEY'); 
-    $model  = "gemini-2.5-flash";
+    $apiKey = env('GOOGLE_API_KEY');
+    $model  = "gemini-2.5-flash"; // or "gemini-2.5-flash-lite" if preferred
 
     try {
-        // Get all FAQs as fallback (force intent understanding)
-        $faqs = Faq::all();
+        // 1. FETCH ALL FAQS (filter by status if you have one)
+        $faqs = Faq::all(); // add ->where('status', 'published') if applicable
+        $faqTexts = $faqs->map(function($faq) {
+            return "Vraag: " . $faq->question . "\nAntwoord: " . $faq->answer;
+        })->join("\n\n");
 
-        $context = "You are a highly intelligent maritime assistant for Schepen Kring.\n";
-        $context .= "Answer clearly based on the FAQs below, but use your understanding to answer questions even if they are worded differently than the stored questions. Provide concise and accurate answers.\n\n";
+        // 2. BUILD SYSTEM CONTEXT for Schepen Kring
+        $systemContext = "
+ROLE: You are the 'Schepen Kring' AI assistant, specialized in maritime and yacht information. You are helpful, friendly, and extremely concise.
 
-        foreach ($faqs as $faq) {
-            $context .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
-        }
+TONE & PERSONALITY: Professional, knowledgeable, and approachable. Use a calm and clear tone. Use emojis occasionally where appropriate ⚓.
 
-        $context .= "User question: {$request->question}";
+WHAT IS Schepen Kring?
+Schepen Kring is a platform for yacht and vessel enthusiasts, brokers, and buyers. We provide:
+- Listings of sailing yachts, motor yachts, and luxury vessels.
+- Detailed specifications, images, and broker contact information.
+- Resources for buying, selling, and chartering vessels.
 
-        // Call Gemini API
-        $body = [
-            "contents" => [
-                [
-                    "parts" => [
-                        ["text" => $context]
-                    ]
+TONE & STYLE:
+- CONCISE and FRIENDLY: Max 2 sentences. No paragraphs.
+- HUMAN: Use friendly language. Don't sound like a manual. Use contractions (we're, it's) and occasional emojis.
+- If the user asks about a specific type of yacht or feature, provide accurate information based on the FAQs.
+- If you don't know the answer, politely suggest they contact support or a broker.
+
+MANDATORY RULES:
+1. LANGUAGE ADAPTATION: Detect the language the user is speaking. ALWAYS respond in the SAME language as the user. If they speak Dutch, you speak Dutch. If they speak English, you speak English. Prioritize Dutch over English if uncertain.
+2. Use the following FAQs as your absolute source of truth for company facts and common questions.
+
+KNOWLEDGE BASE:
+---
+FAQS:
+$faqTexts
+---
+        ";
+
+        // 3. PREPARE THE USER MESSAGE
+        $contents = [
+            [
+                "role" => "user",
+                "parts" => [
+                    ["text" => $request->question]
                 ]
-            ],
-            "generationConfig" => [
-                "temperature" => 0.3,
-                "maxOutputTokens" => 800
             ]
         ];
 
-        $response = Http::timeout(30)->post(
-            "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
-            $body
-        );
+        // 4. CALL GEMINI API WITH SYSTEM INSTRUCTION
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . $apiKey;
+
+        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            ->timeout(30)
+            ->post($url, [
+                "system_instruction" => [
+                    "parts" => [["text" => $systemContext]]
+                ],
+                "contents" => $contents,
+                "generationConfig" => [
+                    "temperature" => 0.7,
+                    "maxOutputTokens" => 250,
+                ]
+            ]);
 
         if ($response->failed()) {
             Log::error("Gemini API failed: " . $response->body());
             throw new \Exception("Gemini request failed");
         }
 
-        $answer = $response->json('candidates.0.content.0.text') ?? null;
+        $answer = $response->json('candidates.0.content.parts.0.text');
+        $answer = $answer ? trim($answer) : "I don't have specific information about that yet. Please contact support.";
 
         return response()->json([
-            'answer' => $answer ? trim($answer) : "I don’t have specific information about that yet. Please contact support.",
+            'answer' => $answer,
             'sources' => $faqs->count(),
             'timestamp' => now()
         ]);
