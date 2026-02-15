@@ -76,36 +76,38 @@ def main():
         print(f"ERROR|Gemini config: {str(e)}")
         sys.exit(1)
 
-    # Generate embedding using multimodal model
-    embedding = None
-    model_names = [
-        "models/multimodalembedding@001",
-        "multimodalembedding@001",
-        "models/embedding-001",
-    ]
-
-    for model_name in model_names:
-        try:
-            logger.info("Trying model: %s", model_name)
-            response = client.models.embed_content(
-                model=model_name,
-                contents=[image]
-            )
-            embedding = response.embeddings[0].values
-            logger.info("Success with model: %s", model_name)
-            break
-        except Exception as e:
-            logger.warning("Model %s failed: %s", model_name, str(e))
-            continue
-
-    if embedding is None:
-        logger.error("All embedding attempts failed")
-        print("ERROR|Embedding failed: no model succeeded")
+    # Step 1: Generate a detailed description of the image using Gemini Flash
+    try:
+        logger.info("Generating image description with Gemini Flash...")
+        response = client.models.generate_content(
+            model="models/gemini-2.5-flash",   # or "gemini-1.5-flash"
+            contents=[
+                "Describe this boat image in detail, focusing on visible parts, type of vessel, and any distinctive features. Be concise but thorough.",
+                image
+            ]
+        )
+        description = response.text
+        logger.info("Description generated (first 100 chars): %s", description[:100])
+    except Exception as e:
+        logger.exception("Description generation failed")
+        print(f"ERROR|Description failed: {str(e)}")
         sys.exit(1)
 
-    logger.info("Embedding generated, dimensions: %d", len(embedding))
+    # Step 2: Embed the description using the correct embedding model
+    try:
+        logger.info("Embedding description with models/gemini-embedding-001")
+        emb_response = client.models.embed_content(
+            model="models/gemini-embedding-001",
+            contents=[description]
+        )
+        embedding = emb_response.embeddings[0].values
+        logger.info("Embedding generated, dimensions: %d", len(embedding))
+    except Exception as e:
+        logger.exception("Embedding failed")
+        print(f"ERROR|Embedding failed: {str(e)}")
+        sys.exit(1)
 
-    # Upsert to Pinecone
+    # Step 3: Upsert to Pinecone
     try:
         upsert_response = index.upsert(vectors=[{
             "id": filename,
@@ -113,7 +115,8 @@ def main():
             "metadata": {
                 "url": PUBLIC_URL,
                 "path": IMAGE_PATH,
-                "filename": filename
+                "filename": filename,
+                "description": description   # store description for later use
             }
         }])
         logger.info("Upsert response: %s", upsert_response)
