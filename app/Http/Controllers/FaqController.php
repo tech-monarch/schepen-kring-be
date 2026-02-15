@@ -140,62 +140,22 @@ public function askGemini(Request $request)
         'question' => 'required|string|max:500'
     ]);
 
-    $apiKey = env('GOOGLE_API_KEY'); // ensure this is set in .env
+    $apiKey = env('GOOGLE_API_KEY'); 
     $model  = "gemini-2.5-flash";
 
     try {
-        $context = "You are a helpful maritime assistant for Schepen Kring.\n";
-        $context .= "Answer clearly using only the FAQ information below.\n\n";
-
-        // STEP 1: Vector search for relevant FAQs
-        $embedding = $this->createEmbedding($request->question);
+        // Step 1: Gather all FAQ info (or top 5 via embedding)
         $faqs = Faq::whereNotNull('embedding')->get();
-        $topFaqs = collect();
+        $context = "You are a helpful maritime assistant for Schepen Kring.\n";
+        $context .= "Use the FAQ information below to help answer any user question, but answer even if the question is not an exact match.\n\n";
 
-        if ($embedding) {
-            $topFaqs = $faqs->map(function ($faq) use ($embedding) {
-                $faqEmbedding = json_decode($faq->embedding, true);
-                if (!$faqEmbedding) return null;
-
-                $dot = $normA = $normB = 0;
-                foreach ($embedding as $i => $val) {
-                    $dot += $val * ($faqEmbedding[$i] ?? 0);
-                    $normA += $val * $val;
-                    $normB += ($faqEmbedding[$i] ?? 0) ** 2;
-                }
-
-                $similarity = $dot / (sqrt($normA) * sqrt($normB) + 1e-10);
-                return ['faq' => $faq, 'score' => $similarity];
-            })->filter()->sortByDesc('score')->take(5);
-        }
-
-        // STEP 2: Fallback to keyword search if no embeddings found
-        if ($topFaqs->isEmpty()) {
-            $keywordFaqs = Faq::where('question', 'like', "%{$request->question}%")
-                ->orWhere('answer', 'like', "%{$request->question}%")
-                ->limit(5)->get();
-
-            if ($keywordFaqs->isNotEmpty()) {
-                $topFaqs = $keywordFaqs->map(fn($faq) => ['faq' => $faq, 'score' => 0.5]);
-            }
-        }
-
-        if ($topFaqs->isEmpty()) {
-            return response()->json([
-                'answer' => "I don’t have specific information about that yet. Please contact support.",
-                'sources' => 0,
-                'timestamp' => now()
-            ]);
-        }
-
-        // STEP 3: Build context from top FAQs
-        foreach ($topFaqs as $item) {
-            $faq = $item['faq'];
+        foreach ($faqs as $faq) {
             $context .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
         }
+
         $context .= "User question: {$request->question}";
 
-        // STEP 4: Call Gemini generateContent API
+        // Step 2: Call Gemini generateContent API
         $body = [
             "contents" => [
                 [
@@ -205,7 +165,7 @@ public function askGemini(Request $request)
                 ]
             ],
             "generationConfig" => [
-                "temperature" => 0.3,
+                "temperature" => 0.4,
                 "maxOutputTokens" => 800
             ]
         ];
@@ -220,38 +180,16 @@ public function askGemini(Request $request)
             throw new \Exception("Gemini request failed");
         }
 
-        // Extract answer
         $answer = $response->json('candidates.0.content.0.text') ?? null;
-        if (!$answer) {
-            throw new \Exception("Gemini returned no answer");
-        }
 
         return response()->json([
-            'answer' => trim($answer),
-            'sources' => $topFaqs->count(),
+            'answer' => $answer ? trim($answer) : "I don’t have specific information about that yet. Please contact support.",
+            'sources' => $faqs->count(),
             'timestamp' => now()
         ]);
 
     } catch (\Throwable $e) {
         Log::error("askGemini error: " . $e->getMessage());
-
-        // Fallback: return top 3 relevant FAQs
-        $fallbackFaqs = Faq::where('question', 'like', "%{$request->question}%")
-            ->orWhere('answer', 'like', "%{$request->question}%")
-            ->limit(3)->get();
-
-        if ($fallbackFaqs->isNotEmpty()) {
-            $text = "Here are some related FAQs:\n\n";
-            foreach ($fallbackFaqs as $faq) {
-                $text .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
-            }
-            return response()->json([
-                'answer' => $text,
-                'sources' => $fallbackFaqs->count(),
-                'timestamp' => now()
-            ]);
-        }
-
         return response()->json([
             'answer' => "Our AI assistant is temporarily unavailable. Please contact support.",
             'sources' => 0,
@@ -259,6 +197,7 @@ public function askGemini(Request $request)
         ]);
     }
 }
+
 
 // Embedding function rewritten to use generateContent properly
 private function createEmbedding($text)
