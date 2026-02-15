@@ -5,7 +5,6 @@ import logging
 from PIL import Image
 from pinecone import Pinecone, exceptions as pinecone_exceptions
 from google import genai
-from google.genai import types
 
 # Setup logging to stderr
 logging.basicConfig(
@@ -82,7 +81,7 @@ def main():
     model_names = [
         "models/multimodalembedding@001",
         "multimodalembedding@001",
-        "models/embedding-001",          # fallback text embedding (if image fails)
+        "models/embedding-001",
     ]
 
     for model_name in model_names:
@@ -90,9 +89,8 @@ def main():
             logger.info("Trying model: %s", model_name)
             response = client.models.embed_content(
                 model=model_name,
-                contents=[image]          # contents must be a list
+                contents=[image]
             )
-            # The response structure: response.embeddings[0].values
             embedding = response.embeddings[0].values
             logger.info("Success with model: %s", model_name)
             break
