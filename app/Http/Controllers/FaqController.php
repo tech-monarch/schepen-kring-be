@@ -139,148 +139,181 @@ public function askGemini(Request $request)
     $request->validate([
         'question' => 'required|string|max:500'
     ]);
-    
-    // Get context from FAQ database
-    $faqs = Faq::orderBy('views', 'desc')
-               ->limit(30)
-               ->get(['question', 'answer', 'category']);
-    
-    if ($faqs->isEmpty()) {
-        return response()->json([
-            'answer' => 'The knowledge base is currently empty. Please check back later or contact support.',
-            'sources' => 0,
-            'timestamp' => now()->toDateTimeString()
-        ]);
-    }
-    
-    // Create context for Gemini
-    $context = "You are a helpful maritime assistant for Schepen Kring. Answer based on the following FAQs:\n\n";
-    
-    foreach ($faqs as $faq) {
-        $context .= "Q: {$faq->question}\n";
-        $context .= "A: {$faq->answer}\n";
-        $context .= "Category: {$faq->category}\n\n";
-    }
-    
-    $context .= "Now answer this question based only on the FAQs above. If the answer isn't in the FAQs, say: 'I don't have specific information about that. For more details, please contact our support team.'\n\n";
-    $context .= "Question: {$request->question}\nAnswer:";
-    
-    // HARDCODED API KEY - REPLACE WITH YOUR ACTUAL KEY
-    $geminiApiKey = 'AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I'; // REPLACE THIS
-    
-    if (!$geminiApiKey || $geminiApiKey === 'AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I') {
-        Log::error('Gemini API key is not set or is placeholder');
-        
-        // Fallback: return answer from FAQ search
-        $relevantFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
-                          ->orWhere('answer', 'like', '%' . $request->question . '%')
-                          ->limit(3)
-                          ->get();
-        
-        if ($relevantFaqs->isNotEmpty()) {
-            $fallbackAnswer = "Based on our FAQs, here's what might help:\n\n";
-            foreach ($relevantFaqs as $faq) {
-                $fallbackAnswer .= "Q: {$faq->question}\n";
-                $fallbackAnswer .= "A: {$faq->answer}\n\n";
-            }
-            $fallbackAnswer .= "For more specific questions, please contact support.";
-        } else {
-            $fallbackAnswer = "I apologize, but I cannot answer that question at the moment. Please browse our FAQs or contact our support team for assistance.";
-        }
-        
-        return response()->json([
-            'answer' => $fallbackAnswer,
-            'sources' => $relevantFaqs->count(),
-            'timestamp' => now()->toDateTimeString(),
-            'note' => 'AI service is currently being set up. This is a fallback response.'
-        ]);
-    }
-    
+
+    $apiKey = "AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I";
+    $model  = "gemini-2.5-flash";
+
     try {
-        // Call Gemini API with hardcoded key
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-        ])->timeout(30)
-          ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={$geminiApiKey}", [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $context]
-                    ]
-                ]
-            ],
-            'generationConfig' => [
-                'temperature' => 0.7,
-                'maxOutputTokens' => 1000,
-                'topP' => 0.8,
-                'topK' => 40
-            ],
-            'safetySettings' => [
-                [
-                    'category' => 'HARM_CATEGORY_HARASSMENT',
-                    'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                ],
-                [
-                    'category' => 'HARM_CATEGORY_HATE_SPEECH',
-                    'threshold' => 'BLOCK_MEDIUM_AND_ABOVE'
-                ]
-            ]
-        ]);
-        
-        if ($response->failed()) {
-            Log::error('Gemini API failed: ' . $response->status() . ' - ' . $response->body());
-            
-            // Fallback response
-            $fallbackAnswer = "I'm having trouble accessing the AI service at the moment. Here are some related FAQs:\n\n";
-            $relevantFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
-                              ->orWhere('answer', 'like', '%' . $request->question . '%')
-                              ->limit(3)
-                              ->get();
-            
-            foreach ($relevantFaqs as $faq) {
-                $fallbackAnswer .= "Q: {$faq->question}\n";
-                $fallbackAnswer .= "A: {$faq->answer}\n\n";
+
+        /** ================================
+         * STEP 1 — TRY VECTOR SEARCH FIRST
+         * ================================= */
+        $queryEmbedding = $this->createEmbedding($request->question);
+
+        $topFaqs = collect();
+
+        if ($queryEmbedding) {
+            $faqs = Faq::whereNotNull('embedding')->get();
+
+            $topFaqs = $faqs->map(function ($faq) use ($queryEmbedding) {
+
+                $faqEmbedding = json_decode($faq->embedding, true);
+
+                if (!$faqEmbedding) return null;
+
+                $dot = 0;
+                $normA = 0;
+                $normB = 0;
+
+                foreach ($queryEmbedding as $i => $val) {
+                    $dot += $val * ($faqEmbedding[$i] ?? 0);
+                    $normA += $val * $val;
+                    $normB += ($faqEmbedding[$i] ?? 0) * ($faqEmbedding[$i] ?? 0);
+                }
+
+                $similarity = $dot / (sqrt($normA) * sqrt($normB) + 1e-10);
+
+                return [
+                    "faq" => $faq,
+                    "score" => $similarity
+                ];
+            })
+            ->filter()
+            ->sortByDesc("score")
+            ->take(5);
+        }
+
+        /** =====================================
+         * STEP 2 — FALLBACK TO DIRECT FAQ SEARCH
+         * ====================================== */
+        if ($topFaqs->isEmpty()) {
+
+            $keywordFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
+                ->orWhere('answer', 'like', '%' . $request->question . '%')
+                ->limit(5)
+                ->get();
+
+            if ($keywordFaqs->isNotEmpty()) {
+                $topFaqs = $keywordFaqs->map(fn($faq) => ["faq" => $faq, "score" => 0.5]);
             }
-            
+        }
+
+        /** =====================================
+         * STEP 3 — IF STILL EMPTY → HARD FALLBACK
+         * ====================================== */
+        if ($topFaqs->isEmpty()) {
             return response()->json([
-                'answer' => $fallbackAnswer,
-                'sources' => $relevantFaqs->count(),
-                'timestamp' => now()->toDateTimeString()
+                "answer" => "I don’t have specific information about that yet. Please contact our support team for assistance.",
+                "sources" => 0,
+                "timestamp" => now()->toDateTimeString()
             ]);
         }
-        
-        $responseData = $response->json();
-        
-        if (!isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
-            Log::error('Gemini API returned unexpected format: ' . json_encode($responseData));
-            throw new \Exception('Invalid response format from Gemini API');
+
+        /** =====================================
+         * STEP 4 — BUILD CONTEXT FROM FOUND FAQS
+         * ====================================== */
+        $context = "You are a helpful maritime assistant for Schepen Kring.\n";
+        $context .= "Answer ONLY using the FAQ information below.\n\n";
+
+        foreach ($topFaqs as $item) {
+            $faq = $item["faq"];
+            $context .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
         }
-        
-        $answer = $responseData['candidates'][0]['content']['parts'][0]['text'];
-        
-        // Clean up the answer
-        $answer = trim($answer);
-        
-        Log::info('Gemini question asked: ' . $request->question);
-        
+
+        $context .= "User question: {$request->question}";
+
+        /** =====================================
+         * STEP 5 — ASK GEMINI
+         * ====================================== */
+        $response = Http::timeout(30)->post(
+            "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}",
+            [
+                "contents" => [
+                    [
+                        "parts" => [
+                            ["text" => $context]
+                        ]
+                    ]
+                ],
+                "generationConfig" => [
+                    "temperature" => 0.3,
+                    "maxOutputTokens" => 800
+                ]
+            ]
+        );
+
+        if ($response->failed()) {
+            throw new \Exception("Gemini failed: " . $response->body());
+        }
+
+        $answer = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
+        if (!$answer) {
+            throw new \Exception("Invalid Gemini response");
+        }
+
         return response()->json([
-            'answer' => $answer,
-            'sources' => $faqs->count(),
-            'timestamp' => now()->toDateTimeString()
+            "answer" => trim($answer),
+            "sources" => $topFaqs->count(),
+            "timestamp" => now()->toDateTimeString()
         ]);
-        
-    } catch (\Exception $e) {
-        Log::error('Gemini API error: ' . $e->getMessage());
-        
-        // Final fallback
+
+    } catch (\Throwable $e) {
+
+        Log::error("RAG error: " . $e->getMessage());
+
+        /** FINAL SAFETY FALLBACK **/
+        $fallbackFaqs = Faq::where('question', 'like', '%' . $request->question . '%')
+            ->orWhere('answer', 'like', '%' . $request->question . '%')
+            ->limit(3)
+            ->get();
+
+        if ($fallbackFaqs->isNotEmpty()) {
+            $text = "Here are some related FAQs:\n\n";
+            foreach ($fallbackFaqs as $faq) {
+                $text .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
+            }
+
+            return response()->json([
+                "answer" => $text,
+                "sources" => $fallbackFaqs->count(),
+                "timestamp" => now()->toDateTimeString()
+            ]);
+        }
+
         return response()->json([
-            'answer' => "I apologize, but our AI assistant is temporarily unavailable. Please browse our FAQ categories or contact support for assistance with your question: '{$request->question}'",
-            'sources' => 0,
-            'timestamp' => now()->toDateTimeString(),
-            'error' => 'Service temporarily unavailable'
-        ], 200);
+            "answer" => "Our AI assistant is temporarily unavailable. Please contact support.",
+            "sources" => 0,
+            "timestamp" => now()->toDateTimeString()
+        ]);
     }
 }
+
+
+
+private function createEmbedding($text)
+{
+    $apiKey = "AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I";
+
+    $response = Http::post(
+        "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={$apiKey}",
+        [
+            "content" => [
+                "parts" => [
+                    ["text" => $text]
+                ]
+            ]
+        ]
+    );
+
+    if ($response->failed()) {
+        throw new \Exception("Embedding failed");
+    }
+
+    return $response->json()['embedding']['values'] ?? null;
+}
+
+
 
     // Train Gemini with all Faqs (Admin function)
     public function trainGemini()
