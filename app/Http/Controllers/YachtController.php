@@ -297,8 +297,8 @@ protected function saveYacht(Request $request, $id = null): JsonResponse
             'images.*' => 'required|image|max:5120',
         ]);
 
-        $apiKey = "AIzaSyDwuu7UILyKXZNyB2KclKyGpEYiBNUNhc0";
-        $model = "gemini-2.0-flash"; 
+        $apiKey = env('GEMINI_API_KEY');
+        $model = "gemini-2.5-flash"; 
         $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         $results = [];
