@@ -141,11 +141,11 @@ public function askGemini(Request $request)
     ]);
 
     $apiKey = env('GOOGLE_API_KEY');
-    $model  = "gemini-2.5-flash"; // or "gemini-2.5-flash-lite" if preferred
+    $model  = "gemini-2.5-flash"; // or "gemini-2.5-flash-lite"
 
     try {
-        // 1. FETCH ALL FAQS (filter by status if you have one)
-        $faqs = Faq::all(); // add ->where('status', 'published') if applicable
+        // 1. FETCH ALL FAQS (no status column to filter)
+        $faqs = Faq::all();
         $faqTexts = $faqs->map(function($faq) {
             return "Vraag: " . $faq->question . "\nAntwoord: " . $faq->answer;
         })->join("\n\n");
