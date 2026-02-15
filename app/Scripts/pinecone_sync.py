@@ -2,9 +2,10 @@
 import os
 import sys
 import logging
-import google.generativeai as genai
-from pinecone import Pinecone, exceptions as pinecone_exceptions
 from PIL import Image
+from pinecone import Pinecone, exceptions as pinecone_exceptions
+from google import genai
+from google.genai import types
 
 # Setup logging to stderr
 logging.basicConfig(
@@ -36,14 +37,14 @@ def main():
 
     filename = os.path.basename(IMAGE_PATH)
 
+    # Configure Pinecone
     try:
-        genai.configure(api_key=API_KEY_GEMINI)
         pc = Pinecone(api_key=API_KEY_PINECONE)
         index = pc.Index(INDEX_NAME)
-        logger.info("APIs configured")
+        logger.info("Pinecone configured")
     except Exception as e:
-        logger.exception("API config failed")
-        print(f"ERROR|API config: {str(e)}")
+        logger.exception("Pinecone config failed")
+        print(f"ERROR|Pinecone config: {str(e)}")
         sys.exit(1)
 
     # Check if vector already exists
@@ -67,33 +68,44 @@ def main():
         print(f"ERROR|Image load: {str(e)}")
         sys.exit(1)
 
-    # Generate embedding using the correct multimodal model
+    # Configure Gemini client
     try:
-        # Try the most common model name first
-        model_name = "models/multimodalembedding@001"
-        logger.info("Using model: %s", model_name)
-        result = genai.embed_content(
-            model=model_name,
-            content=image,
-            task_type="retrieval_document"
-        )
-        embedding = result['embedding']
-        logger.info("Embedding generated, dimensions: %d", len(embedding))
+        client = genai.Client(api_key=API_KEY_GEMINI)
+        logger.info("Gemini client configured")
     except Exception as e:
-        # Fallback: try without "models/" prefix (some API versions require this)
-        logger.warning("First attempt failed, trying alternative model name")
+        logger.exception("Gemini config failed")
+        print(f"ERROR|Gemini config: {str(e)}")
+        sys.exit(1)
+
+    # Generate embedding using multimodal model
+    embedding = None
+    model_names = [
+        "models/multimodalembedding@001",
+        "multimodalembedding@001",
+        "models/embedding-001",          # fallback text embedding (if image fails)
+    ]
+
+    for model_name in model_names:
         try:
-            model_name = "multimodalembedding@001"
-            result = genai.embed_content(
+            logger.info("Trying model: %s", model_name)
+            response = client.models.embed_content(
                 model=model_name,
-                content=image,
-                task_type="retrieval_document"
+                contents=[image]          # contents must be a list
             )
-            embedding = result['embedding']
-        except Exception as e2:
-            logger.exception("Both embedding attempts failed")
-            print(f"ERROR|Embedding failed: {str(e)} | {str(e2)}")
-            sys.exit(1)
+            # The response structure: response.embeddings[0].values
+            embedding = response.embeddings[0].values
+            logger.info("Success with model: %s", model_name)
+            break
+        except Exception as e:
+            logger.warning("Model %s failed: %s", model_name, str(e))
+            continue
+
+    if embedding is None:
+        logger.error("All embedding attempts failed")
+        print("ERROR|Embedding failed: no model succeeded")
+        sys.exit(1)
+
+    logger.info("Embedding generated, dimensions: %d", len(embedding))
 
     # Upsert to Pinecone
     try:
