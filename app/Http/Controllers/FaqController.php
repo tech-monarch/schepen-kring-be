@@ -166,9 +166,9 @@ public function askGemini(Request $request)
     $context .= "Question: {$request->question}\nAnswer:";
     
     // HARDCODED API KEY - REPLACE WITH YOUR ACTUAL KEY
-    $geminiApiKey = 'AIzaSyDe313onWf6a2C8uHHcJDP6bW7-tvnkkoE'; // REPLACE THIS
+    $geminiApiKey = 'AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I'; // REPLACE THIS
     
-    if (!$geminiApiKey || $geminiApiKey === 'AIzaSyDe313onWf6a2C8uHHcJDP6bW7-tvnkkoE') {
+    if (!$geminiApiKey || $geminiApiKey === 'AIzaSyBti01fNKPd5w3YWwooz6b9FmDEczfHl5I') {
         Log::error('Gemini API key is not set or is placeholder');
         
         // Fallback: return answer from FAQ search
