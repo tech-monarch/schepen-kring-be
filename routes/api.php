@@ -236,6 +236,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/faqs/training-status', [FaqController::class, 'getTrainingStatus']);
 });
 
+Route::get('/faqs/test-gemini', function () {
+    $controller = new FaqController();
+
+    $request = new \Illuminate\Http\Request([
+        'question' => 'Hello, what yachts are available?'
+    ]);
+
+    return $controller->askGemini($request);
+});
+
 
 // Public routes (no authentication required)
 Route::prefix('system-logs')->group(function () {
