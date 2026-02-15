@@ -140,7 +140,7 @@ public function askGemini(Request $request)
         'question' => 'required|string|max:500'
     ]);
 
-    $apiKey = env('GOOGLE_API_KEY'); // store in .env
+    $apiKey = env('GOOGLE_API_KEY'); // ensure this is set in .env
     $model  = "gemini-2.5-flash";
 
     try {
@@ -169,7 +169,7 @@ public function askGemini(Request $request)
             })->filter()->sortByDesc('score')->take(5);
         }
 
-        // STEP 2: Fallback to keyword search if needed
+        // STEP 2: Fallback to keyword search if no embeddings found
         if ($topFaqs->isEmpty()) {
             $keywordFaqs = Faq::where('question', 'like', "%{$request->question}%")
                 ->orWhere('answer', 'like', "%{$request->question}%")
@@ -188,14 +188,14 @@ public function askGemini(Request $request)
             ]);
         }
 
-        // Build the context from top FAQs
+        // STEP 3: Build context from top FAQs
         foreach ($topFaqs as $item) {
             $faq = $item['faq'];
             $context .= "Q: {$faq->question}\nA: {$faq->answer}\n\n";
         }
         $context .= "User question: {$request->question}";
 
-        // STEP 3: Call Gemini generateContent API
+        // STEP 4: Call Gemini generateContent API
         $body = [
             "contents" => [
                 [
@@ -216,12 +216,12 @@ public function askGemini(Request $request)
         );
 
         if ($response->failed()) {
-            Log::error("Gemini failed: " . $response->body());
+            Log::error("Gemini API failed: " . $response->body());
             throw new \Exception("Gemini request failed");
         }
 
+        // Extract answer
         $answer = $response->json('candidates.0.content.0.text') ?? null;
-
         if (!$answer) {
             throw new \Exception("Gemini returned no answer");
         }
@@ -235,7 +235,7 @@ public function askGemini(Request $request)
     } catch (\Throwable $e) {
         Log::error("askGemini error: " . $e->getMessage());
 
-        // Final fallback: return relevant FAQs
+        // Fallback: return top 3 relevant FAQs
         $fallbackFaqs = Faq::where('question', 'like', "%{$request->question}%")
             ->orWhere('answer', 'like', "%{$request->question}%")
             ->limit(3)->get();
@@ -260,25 +260,36 @@ public function askGemini(Request $request)
     }
 }
 
-// Embedding function remains unchanged
+// Embedding function rewritten to use generateContent properly
 private function createEmbedding($text)
 {
     $apiKey = env('GOOGLE_API_KEY');
 
-    $response = Http::post(
-        "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={$apiKey}",
-        [
-            "content" => [
-                ["parts" => [["text" => $text]]]
+    $body = [
+        "contents" => [
+            [
+                "parts" => [
+                    ["text" => $text]
+                ]
             ]
+        ],
+        "generationConfig" => [
+            "temperature" => 0,
+            "maxOutputTokens" => 1
         ]
+    ];
+
+    $response = Http::timeout(15)->post(
+        "https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={$apiKey}",
+        $body
     );
 
     if ($response->failed()) {
-        throw new \Exception("Embedding failed");
+        Log::error("Embedding API failed: " . $response->body());
+        return null;
     }
 
-    return $response->json()['embedding']['values'] ?? null;
+    return $response->json('embedding.values') ?? null;
 }
 
 
