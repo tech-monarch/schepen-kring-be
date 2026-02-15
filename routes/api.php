@@ -248,7 +248,7 @@ Route::get('/faqs/test-gemini', function () {
 // Temporary testing route (no auth)
 Route::post('/faqs/test-dummy', [FaqController::class, 'storeDummy']);
 
-
+Route::delete('/boats/{filename}', [BoatAnalysisController::class, 'destroy']);
 // Public routes (no authentication required)
 Route::prefix('system-logs')->group(function () {
     Route::get('/', [SystemLogController::class, 'index']);

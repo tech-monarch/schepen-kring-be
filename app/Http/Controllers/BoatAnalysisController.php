@@ -8,6 +8,9 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Illuminate\Support\Facades\Log;
 
+use App\Models\ImageEmbedding;
+use Illuminate\Support\Facades\Storage;
+
 class BoatAnalysisController extends Controller
 {
     public function identify(Request $request)
@@ -75,4 +78,25 @@ class BoatAnalysisController extends Controller
             ], 500);
         }
     }
+
+public function destroy($filename)
+{
+    try {
+        // Find the record
+        $embedding = ImageEmbedding::where('filename', $filename)->firstOrFail();
+
+        // Delete the physical file
+        $path = 'public/boats/' . $filename;
+        if (Storage::exists($path)) {
+            Storage::delete($path);
+        }
+
+        // Delete the database record
+        $embedding->delete();
+
+        return response()->json(['message' => 'Boat deleted successfully']);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Delete failed: ' . $e->getMessage()], 500);
+    }
+}
 }
