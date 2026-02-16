@@ -26,6 +26,8 @@ use App\Http\Controllers\ImageSearchController;
 use App\Http\Controllers\SyncController;
 use App\Http\Controllers\PartnerPublicController;
 use App\Http\Controllers\InspectionController;
+use App\Http\Controllers\BoatTypeController;
+use App\Http\Controllers\BoatCheckController;
 
 Route::post('/sync-remaining', [SyncController::class, 'retry']);
 
@@ -287,13 +289,32 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users/{user}/page-permissions/bulk-update', [PagePermissionController::class, 'bulkUpdate']);
     Route::post('/users/{user}/page-permissions/reset', [PagePermissionController::class, 'resetPermissions']);
 
-    Route::get('inspections/boat/{boatId}', [InspectionController::class, 'showForBoat']);
-Route::put('inspections/{inspectionId}/answers/{answerId}', [InspectionController::class, 'updateAnswer']);
+//     Route::get('inspections/boat/{boatId}', [InspectionController::class, 'showForBoat']);
+// Route::put('inspections/{inspectionId}/answers/{answerId}', [InspectionController::class, 'updateAnswer']);
 });
 
-use App\Http\Controllers\BoatCheckController;
+Route::middleware('auth:sanctum')->group(function () {
+    // ... existing routes (bids, tasks, etc.) ...
 
-// Checklist Builder (Admin only)
-Route::middleware('permission:manage checklist questions')->group(function () {
-    Route::apiResource('boat-checks', BoatCheckController::class);
+    // ================== BOAT TYPES ==================
+    Route::get('/boat-types', [BoatTypeController::class, 'index']);
+
+    // ================== CHECKLIST QUESTIONS (read-only for all authenticated) ==================
+    Route::get('/boat-checks', [BoatCheckController::class, 'index']);
+    Route::get('/boat-checks/{id}', [BoatCheckController::class, 'show']);
+
+    // ================== INSPECTIONS ==================
+    Route::post('/inspections', [InspectionController::class, 'store']);
+    Route::post('/inspections/{id}/answers', [InspectionController::class, 'storeAnswers']);
+    Route::get('/inspections/boat/{boatId}', [InspectionController::class, 'showForBoat']);
+    Route::put('/inspections/{inspectionId}/answers/{answerId}', [InspectionController::class, 'updateAnswer']);
+
+    // ... rest of your protected routes ...
+});
+
+// ================== CHECKLIST MANAGEMENT (admin only) ==================
+Route::middleware(['auth:sanctum', 'permission:manage checklist questions'])->group(function () {
+    Route::post('/boat-checks', [BoatCheckController::class, 'store']);
+    Route::put('/boat-checks/{id}', [BoatCheckController::class, 'update']);
+    Route::delete('/boat-checks/{id}', [BoatCheckController::class, 'destroy']);
 });
