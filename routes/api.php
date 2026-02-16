@@ -25,6 +25,7 @@ use App\Http\Controllers\BoatAnalysisController;
 use App\Http\Controllers\ImageSearchController;
 use App\Http\Controllers\SyncController;
 use App\Http\Controllers\PartnerPublicController;
+use App\Http\Controllers\InspectionController;
 
 Route::post('/sync-remaining', [SyncController::class, 'retry']);
 
@@ -286,5 +287,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users/{user}/page-permissions/bulk-update', [PagePermissionController::class, 'bulkUpdate']);
     Route::post('/users/{user}/page-permissions/reset', [PagePermissionController::class, 'resetPermissions']);
 
-    // ... other existing routes (tasks, yachts, etc.)
+    Route::get('inspections/boat/{boatId}', [InspectionController::class, 'showForBoat']);
+Route::put('inspections/{inspectionId}/answers/{answerId}', [InspectionController::class, 'updateAnswer']);
+});
+
+use App\Http\Controllers\BoatCheckController;
+
+// Checklist Builder (Admin only)
+Route::middleware('permission:manage checklist questions')->group(function () {
+    Route::apiResource('boat-checks', BoatCheckController::class);
 });
