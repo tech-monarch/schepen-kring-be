@@ -28,7 +28,7 @@ public function update(Request $request)
         'state' => 'nullable|string|max:100',
         'postcode' => 'nullable|string|max:20',
         'country' => 'nullable|string|max:100',
-        'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+        'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:20480',
 
         // new rules (all optional)
         'relationNumber' => 'nullable|string|max:50',
