@@ -38,6 +38,10 @@ protected $fillable = [
         'postcode',
         'country',
     'partner_id',
+    // new fields
+    'relationNumber', 'firstName', 'lastName', 'prefix', 'initials',
+    'title', 'salutation', 'attentionOf', 'identification', 'dateOfBirth',
+    'website', 'mobile', 'street', 'houseNumber', 'note', 'claimHistoryCount',
 ];
 
     public function tasks() {
@@ -64,6 +68,8 @@ protected $fillable = [
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+    'dateOfBirth' => 'date',
+    'claimHistoryCount' => 'integer',
         ];
     }
 
