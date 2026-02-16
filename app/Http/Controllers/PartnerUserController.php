@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/PartnerUserController.php
 
 namespace App\Http\Controllers;
 
@@ -44,7 +43,7 @@ class PartnerUserController extends Controller
             'name'         => 'required|string|max:255',
             'email'        => 'required|email|unique:users,email',
             'password'     => 'required|min:8',
-            'role'         => 'required|in:Employee,Customer', // Partners can only create Employees or Customers
+            'role'         => 'required|in:Employee,Customer,Seller',
             'status'       => 'required|in:Active,Suspended',
             'access_level' => 'required|in:Full,Limited,None',
         ]);
@@ -88,7 +87,7 @@ class PartnerUserController extends Controller
             'name'         => 'sometimes|string|max:255',
             'email'        => ['sometimes', 'email', Rule::unique('users')->ignore($user->id)],
             'password'     => 'sometimes|min:8',
-            'role'         => 'sometimes|in:Employee,Customer',
+            'role'         => 'sometimes|in:Employee,Customer,Seller',
             'status'       => 'sometimes|in:Active,Suspended',
             'access_level' => 'sometimes|in:Full,Limited,None',
         ]);
@@ -116,5 +115,45 @@ class PartnerUserController extends Controller
         $user = User::where('partner_id', $partner->id)->findOrFail($id);
         $user->delete();
         return response()->json(['message' => 'User deleted']);
+    }
+
+    /**
+     * Public registration for sellers via partner token.
+     */
+    public function registerSeller(Request $request)
+    {
+        $validated = $request->validate([
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|email|unique:users,email',
+            'password'   => 'required|min:8',
+            'token'      => 'required|string|exists:users,partner_token',
+        ]);
+
+        // Find the partner by token
+        $partner = User::where('partner_token', $validated['token'])
+                       ->where('role', 'Partner')
+                       ->firstOrFail();
+
+        $user = User::create([
+            'name'         => $validated['name'],
+            'email'        => $validated['email'],
+            'password'     => Hash::make($validated['password']),
+            'role'         => 'Seller',
+            'status'       => 'Active',
+            'access_level' => 'Limited',
+            'partner_id'   => $partner->id,
+        ]);
+
+        // Assign Spatie role
+        $role = Role::findByName('Seller', 'web');
+        $user->assignRole($role);
+
+        // Return a token so the seller can log in immediately
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'user'  => $user,
+            'token' => $token,
+        ], 201);
     }
 }

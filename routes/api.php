@@ -318,3 +318,4 @@ Route::middleware(['auth:sanctum', 'permission:manage checklist questions'])->gr
     Route::put('/boat-checks/{id}', [BoatCheckController::class, 'update']);
     Route::delete('/boat-checks/{id}', [BoatCheckController::class, 'destroy']);
 });
+Route::post('/register/seller', [PartnerUserController::class, 'registerSeller']);
