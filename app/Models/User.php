@@ -159,4 +159,5 @@ public function ownedUsers()
 {
     return $this->hasMany(User::class, 'partner_id');
 }
+
 }
