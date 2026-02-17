@@ -319,3 +319,18 @@ Route::middleware(['auth:sanctum', 'permission:manage checklist questions'])->gr
     Route::delete('/boat-checks/{id}', [BoatCheckController::class, 'destroy']);
 });
 Route::post('/register/seller', [PartnerUserController::class, 'registerSeller']);
+
+use App\Http\Controllers\PartnerTaskController;
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Partner tasks management
+    Route::prefix('partner')->group(function () {
+        Route::get('/tasks', [PartnerTaskController::class, 'index']);
+        Route::post('/tasks', [PartnerTaskController::class, 'store']);
+        Route::get('/tasks/{id}', [PartnerTaskController::class, 'show']);
+        Route::put('/tasks/{id}', [PartnerTaskController::class, 'update']);
+        Route::delete('/tasks/{id}', [PartnerTaskController::class, 'destroy']);
+        Route::patch('/tasks/{id}/status', [PartnerTaskController::class, 'updateStatus']);
+        Route::get('/tasks/calendar', [PartnerTaskController::class, 'calendarTasks']);
+    });
+});
