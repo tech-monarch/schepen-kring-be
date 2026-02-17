@@ -43,55 +43,60 @@ class PartnerTaskController extends Controller
     /**
      * Create a new task (assigned to a user under this partner).
      */
-    public function store(Request $request)
-    {
-        try {
-            $partner = $request->user();
+public function store(Request $request)
+{
+    try {
+        $partner = $request->user();
 
-            if (!$partner || $partner->role !== 'Partner') {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-
-            $validator = Validator::make($request->all(), [
-                'title'       => 'required|string|max:255',
-                'description' => 'nullable|string',
-                'priority'    => 'required|in:Low,Medium,High,Urgent,Critical',
-                'status'      => 'required|in:To Do,In Progress,Done',
-                'assigned_to' => 'required|integer|exists:users,id',
-                'yacht_id'    => 'nullable|integer|exists:yachts,id',
-                'due_date'    => 'required|date',
-                'type'        => 'required|in:assigned,personal',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
-
-            // Ensure the assigned user belongs to this partner
-            $assignedUser = User::find($request->assigned_to);
-            if (!$assignedUser || $assignedUser->partner_id !== $partner->id) {
-                return response()->json([
-                    'error' => 'You can only assign tasks to users under your partner account.'
-                ], 403);
-            }
-
-            $data = $request->all();
-            $data['created_by'] = $partner->id;
-            $data['user_id']    = $partner->id; // The partner is the creator
-
-            // Convert empty strings to null
-            $data['assigned_to'] = (int) $data['assigned_to'];
-            $data['yacht_id']    = $data['yacht_id'] ? (int) $data['yacht_id'] : null;
-
-            $task = Task::create($data);
-
-            return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
-        } catch (\Exception $e) {
-            \Log::error('PartnerTaskController@store error: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
+        if (!$partner || $partner->role !== 'Partner') {
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
-    }
 
+        $validator = Validator::make($request->all(), [
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'priority'    => 'required|in:Low,Medium,High', // updated
+            'status'      => 'required|in:To Do,In Progress,Done',
+            'assigned_to' => 'required|integer|exists:users,id',
+            'yacht_id'    => 'nullable|integer|exists:yachts,id',
+            'due_date'    => 'required|date',
+            'type'        => 'required|in:assigned,personal',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Ensure the assigned user belongs to this partner
+        $assignedUser = User::find($request->assigned_to);
+        if (!$assignedUser || $assignedUser->partner_id !== $partner->id) {
+            return response()->json([
+                'error' => 'You can only assign tasks to users under your partner account.'
+            ], 403);
+        }
+
+        $data = $request->all();
+        $data['created_by'] = $partner->id;
+        $data['user_id']    = $partner->id;
+
+        $data['assigned_to'] = (int) $data['assigned_to'];
+        $data['yacht_id']    = $data['yacht_id'] ? (int) $data['yacht_id'] : null;
+
+        // Set assignment_status
+        if ($data['type'] === 'personal') {
+            $data['assignment_status'] = 'accepted';
+        } else {
+            $data['assignment_status'] = 'pending';
+        }
+
+        $task = Task::create($data);
+
+        return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
+    } catch (\Exception $e) {
+        \Log::error('PartnerTaskController@store error: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error'], 500);
+    }
+}
     /**
      * Show a single task (only if it belongs to a user under this partner).
      */
@@ -320,4 +325,65 @@ class PartnerTaskController extends Controller
             default:          return '#6b7280';
         }
     }
+
+    /**
+ * Accept a task (only the assignee can accept)
+ */
+public function acceptTask($id)
+{
+    try {
+        $user = request()->user();
+        $task = Task::find($id);
+        
+        if (!$task) {
+            return response()->json(['error' => 'Task not found'], 404);
+        }
+
+        // Only the assigned user can accept
+        if ($task->assigned_to !== $user->id) {
+            return response()->json(['error' => 'You are not assigned to this task'], 403);
+        }
+
+        if ($task->assignment_status !== 'pending') {
+            return response()->json(['error' => 'Task is not in pending state'], 400);
+        }
+
+        $task->update(['assignment_status' => 'accepted']);
+
+        return response()->json($task);
+    } catch (\Exception $e) {
+        \Log::error('Error accepting task: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error'], 500);
+    }
+}
+
+/**
+ * Reject a task (only the assignee can reject)
+ */
+public function rejectTask($id)
+{
+    try {
+        $user = request()->user();
+        $task = Task::find($id);
+        
+        if (!$task) {
+            return response()->json(['error' => 'Task not found'], 404);
+        }
+
+        if ($task->assigned_to !== $user->id) {
+            return response()->json(['error' => 'You are not assigned to this task'], 403);
+        }
+
+        if ($task->assignment_status !== 'pending') {
+            return response()->json(['error' => 'Task is not in pending state'], 400);
+        }
+
+        $task->update(['assignment_status' => 'rejected']);
+
+        return response()->json($task);
+    } catch (\Exception $e) {
+        \Log::error('Error rejecting task: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error'], 500);
+    }
+}
 }

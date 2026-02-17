@@ -15,22 +15,24 @@ class Task extends Model
     // Define which events to log
     protected $logEvents = ['created', 'updated', 'deleted'];
 
-    protected $fillable = [
-        'title',
-        'description',
-        'priority',
-        'status',
-        'assigned_to',
-        'yacht_id',
-        'due_date',
-        'user_id',
-        'type',
-        'created_by'
-    ];
+protected $fillable = [
+    'title',
+    'description',
+    'priority',
+    'status',
+    'assignment_status',   // 👈 add this line
+    'assigned_to',
+    'yacht_id',
+    'due_date',
+    'user_id',
+    'type',
+    'created_by'
+];
 
-    protected $casts = [
-        'due_date' => 'datetime',
-    ];
+protected $casts = [
+    'due_date' => 'datetime',
+    'assignment_status' => 'string',
+];
 
     public function assignedTo(): BelongsTo
     {

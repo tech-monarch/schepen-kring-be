@@ -334,3 +334,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/tasks/calendar', [PartnerTaskController::class, 'calendarTasks']);
     });
 });
+
+Route::middleware('auth:sanctum')->group(function () {
+    // ... existing routes ...
+
+    // Accept/Reject tasks (for employees)
+    Route::patch('/tasks/{id}/accept', [TaskController::class, 'acceptTask']);
+    Route::patch('/tasks/{id}/reject', [TaskController::class, 'rejectTask']);
+
+    // Partner-specific accept/reject (if needed)
+    Route::prefix('partner')->group(function () {
+        // ... existing partner routes ...
+        Route::patch('/tasks/{id}/accept', [PartnerTaskController::class, 'acceptTask']);
+        Route::patch('/tasks/{id}/reject', [PartnerTaskController::class, 'rejectTask']);
+    });
+});
