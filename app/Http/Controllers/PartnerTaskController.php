@@ -40,57 +40,199 @@ class PartnerTaskController extends Controller
         }
     }
 
-    /**
-     * Create a new task (assigned to a user under this partner).
-     */
-    public function store(Request $request)
-    {
-        try {
-            $partner = $request->user();
 
-            if (!$partner || $partner->role !== 'Partner') {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
 
-            $validator = Validator::make($request->all(), [
-                'title'       => 'required|string|max:255',
-                'description' => 'nullable|string',
-                'priority'    => 'required|in:Low,Medium,High,Urgent,Critical',
-                'status'      => 'required|in:To Do,In Progress,Done',
-                'assigned_to' => 'required|integer|exists:users,id',
-                'yacht_id'    => 'nullable|integer|exists:yachts,id',
-                'due_date'    => 'required|date',
-                'type'        => 'required|in:assigned,personal',
-            ]);
+    // PartnerTaskController.php
 
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
+public function store(Request $request)
+{
+    try {
+        $partner = $request->user();
 
-            // Ensure the assigned user belongs to this partner
-            $assignedUser = User::find($request->assigned_to);
+        if (!$partner || $partner->role !== 'Partner') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'title'       => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'priority'    => 'required|in:Low,Medium,High,Urgent,Critical',
+            'status'      => 'required|in:To Do,In Progress,Done',
+            'assigned_to' => [
+                'required_if:type,assigned',
+                'nullable',
+                'integer',
+                'exists:users,id'
+            ],
+            'yacht_id'    => 'nullable|integer|exists:yachts,id',
+            'due_date'    => 'required|date',
+            'type'        => 'required|in:assigned,personal',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $data = $request->all();
+        $data['created_by'] = $partner->id;
+        $data['user_id']    = $partner->id; // The partner is the creator
+
+        // For personal tasks, assign to the partner themselves
+        if ($data['type'] === 'personal') {
+            $data['assigned_to'] = $partner->id;
+        }
+
+        // Convert empty strings to null and ensure integers
+        $data['assigned_to'] = isset($data['assigned_to']) && $data['assigned_to'] !== '' ? (int) $data['assigned_to'] : null;
+        $data['yacht_id']    = isset($data['yacht_id']) && $data['yacht_id'] !== '' ? (int) $data['yacht_id'] : null;
+
+        // Ensure assigned_to exists and belongs to this partner
+        if ($data['assigned_to']) {
+            $assignedUser = User::find($data['assigned_to']);
             if (!$assignedUser || $assignedUser->partner_id !== $partner->id) {
                 return response()->json([
                     'error' => 'You can only assign tasks to users under your partner account.'
                 ], 403);
             }
-
-            $data = $request->all();
-            $data['created_by'] = $partner->id;
-            $data['user_id']    = $partner->id; // The partner is the creator
-
-            // Convert empty strings to null
-            $data['assigned_to'] = (int) $data['assigned_to'];
-            $data['yacht_id']    = $data['yacht_id'] ? (int) $data['yacht_id'] : null;
-
-            $task = Task::create($data);
-
-            return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
-        } catch (\Exception $e) {
-            \Log::error('PartnerTaskController@store error: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
         }
+
+        $task = Task::create($data);
+
+        return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
+    } catch (\Exception $e) {
+        \Log::error('PartnerTaskController@store error: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error'], 500);
     }
+}
+
+public function update(Request $request, $id)
+{
+    try {
+        $partner = $request->user();
+
+        if (!$partner || $partner->role !== 'Partner') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $userIds = User::where('partner_id', $partner->id)->pluck('id');
+        $userIds->push($partner->id);
+
+        $task = Task::where(function ($query) use ($userIds) {
+            $query->whereIn('user_id', $userIds)
+                  ->orWhereIn('assigned_to', $userIds);
+        })->find($id);
+
+        if (!$task) {
+            return response()->json(['error' => 'Task not found'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'title'       => 'sometimes|string|max:255',
+            'description' => 'nullable|string',
+            'priority'    => 'sometimes|in:Low,Medium,High,Urgent,Critical',
+            'status'      => 'sometimes|in:To Do,In Progress,Done',
+            'assigned_to' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                'exists:users,id'
+            ],
+            'yacht_id'    => 'nullable|integer|exists:yachts,id',
+            'due_date'    => 'sometimes|date',
+            'type'        => 'sometimes|in:assigned,personal',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $data = $request->all();
+
+        // If type is being changed to personal, force assigned_to to partner's id
+        if (isset($data['type']) && $data['type'] === 'personal') {
+            $data['assigned_to'] = $partner->id;
+        }
+
+        // Convert empty strings to null
+        if (isset($data['assigned_to'])) {
+            $data['assigned_to'] = $data['assigned_to'] !== '' ? (int) $data['assigned_to'] : null;
+        }
+        if (isset($data['yacht_id'])) {
+            $data['yacht_id'] = $data['yacht_id'] !== '' ? (int) $data['yacht_id'] : null;
+        }
+
+        // If changing assigned_to, ensure new user is under this partner
+        if (isset($data['assigned_to']) && $data['assigned_to'] != $task->assigned_to) {
+            if ($data['assigned_to']) {
+                $newAssigned = User::find($data['assigned_to']);
+                if (!$newAssigned || $newAssigned->partner_id !== $partner->id) {
+                    return response()->json([
+                        'error' => 'You can only assign tasks to users under your partner account.'
+                    ], 403);
+                }
+            }
+        }
+
+        $task->update($data);
+
+        return response()->json($task->load(['assignedTo', 'yacht', 'creator']));
+    } catch (\Exception $e) {
+        \Log::error('PartnerTaskController@update error: ' . $e->getMessage());
+        return response()->json(['error' => 'Internal server error'], 500);
+    }
+}
+
+    // /**
+    //  * Create a new task (assigned to a user under this partner).
+    //  */
+    // public function store(Request $request)
+    // {
+    //     try {
+    //         $partner = $request->user();
+
+    //         if (!$partner || $partner->role !== 'Partner') {
+    //             return response()->json(['error' => 'Unauthorized'], 403);
+    //         }
+
+    //         $validator = Validator::make($request->all(), [
+    //             'title'       => 'required|string|max:255',
+    //             'description' => 'nullable|string',
+    //             'priority'    => 'required|in:Low,Medium,High,Urgent,Critical',
+    //             'status'      => 'required|in:To Do,In Progress,Done',
+    //             'assigned_to' => 'required|integer|exists:users,id',
+    //             'yacht_id'    => 'nullable|integer|exists:yachts,id',
+    //             'due_date'    => 'required|date',
+    //             'type'        => 'required|in:assigned,personal',
+    //         ]);
+
+    //         if ($validator->fails()) {
+    //             return response()->json(['errors' => $validator->errors()], 422);
+    //         }
+
+    //         // Ensure the assigned user belongs to this partner
+    //         $assignedUser = User::find($request->assigned_to);
+    //         if (!$assignedUser || $assignedUser->partner_id !== $partner->id) {
+    //             return response()->json([
+    //                 'error' => 'You can only assign tasks to users under your partner account.'
+    //             ], 403);
+    //         }
+
+    //         $data = $request->all();
+    //         $data['created_by'] = $partner->id;
+    //         $data['user_id']    = $partner->id; // The partner is the creator
+
+    //         // Convert empty strings to null
+    //         $data['assigned_to'] = (int) $data['assigned_to'];
+    //         $data['yacht_id']    = $data['yacht_id'] ? (int) $data['yacht_id'] : null;
+
+    //         $task = Task::create($data);
+
+    //         return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
+    //     } catch (\Exception $e) {
+    //         \Log::error('PartnerTaskController@store error: ' . $e->getMessage());
+    //         return response()->json(['error' => 'Internal server error'], 500);
+    //     }
+    // }
 
     /**
      * Show a single task (only if it belongs to a user under this partner).
@@ -125,62 +267,62 @@ class PartnerTaskController extends Controller
         }
     }
 
-    /**
-     * Update a task (only if it belongs to a user under this partner).
-     */
-    public function update(Request $request, $id)
-    {
-        try {
-            $partner = $request->user();
+    // /**
+    //  * Update a task (only if it belongs to a user under this partner).
+    //  */
+    // public function update(Request $request, $id)
+    // {
+    //     try {
+    //         $partner = $request->user();
 
-            if (!$partner || $partner->role !== 'Partner') {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
+    //         if (!$partner || $partner->role !== 'Partner') {
+    //             return response()->json(['error' => 'Unauthorized'], 403);
+    //         }
 
-            $userIds = User::where('partner_id', $partner->id)->pluck('id');
-            $userIds->push($partner->id);
+    //         $userIds = User::where('partner_id', $partner->id)->pluck('id');
+    //         $userIds->push($partner->id);
 
-            $task = Task::where(function ($query) use ($userIds) {
-                $query->whereIn('user_id', $userIds)
-                      ->orWhereIn('assigned_to', $userIds);
-            })->find($id);
+    //         $task = Task::where(function ($query) use ($userIds) {
+    //             $query->whereIn('user_id', $userIds)
+    //                   ->orWhereIn('assigned_to', $userIds);
+    //         })->find($id);
 
-            if (!$task) {
-                return response()->json(['error' => 'Task not found'], 404);
-            }
+    //         if (!$task) {
+    //             return response()->json(['error' => 'Task not found'], 404);
+    //         }
 
-            $validator = Validator::make($request->all(), [
-                'title'       => 'sometimes|string|max:255',
-                'description' => 'nullable|string',
-                'priority'    => 'sometimes|in:Low,Medium,High,Urgent,Critical',
-                'status'      => 'sometimes|in:To Do,In Progress,Done',
-                'assigned_to' => 'sometimes|integer|exists:users,id',
-                'yacht_id'    => 'nullable|integer|exists:yachts,id',
-                'due_date'    => 'sometimes|date',
-            ]);
+    //         $validator = Validator::make($request->all(), [
+    //             'title'       => 'sometimes|string|max:255',
+    //             'description' => 'nullable|string',
+    //             'priority'    => 'sometimes|in:Low,Medium,High,Urgent,Critical',
+    //             'status'      => 'sometimes|in:To Do,In Progress,Done',
+    //             'assigned_to' => 'sometimes|integer|exists:users,id',
+    //             'yacht_id'    => 'nullable|integer|exists:yachts,id',
+    //             'due_date'    => 'sometimes|date',
+    //         ]);
 
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
+    //         if ($validator->fails()) {
+    //             return response()->json(['errors' => $validator->errors()], 422);
+    //         }
 
-            // If changing assigned_to, ensure new user is under this partner
-            if ($request->has('assigned_to') && $request->assigned_to != $task->assigned_to) {
-                $newAssigned = User::find($request->assigned_to);
-                if (!$newAssigned || $newAssigned->partner_id !== $partner->id) {
-                    return response()->json([
-                        'error' => 'You can only assign tasks to users under your partner account.'
-                    ], 403);
-                }
-            }
+    //         // If changing assigned_to, ensure new user is under this partner
+    //         if ($request->has('assigned_to') && $request->assigned_to != $task->assigned_to) {
+    //             $newAssigned = User::find($request->assigned_to);
+    //             if (!$newAssigned || $newAssigned->partner_id !== $partner->id) {
+    //                 return response()->json([
+    //                     'error' => 'You can only assign tasks to users under your partner account.'
+    //                 ], 403);
+    //             }
+    //         }
 
-            $task->update($request->all());
+    //         $task->update($request->all());
 
-            return response()->json($task->load(['assignedTo', 'yacht', 'creator']));
-        } catch (\Exception $e) {
-            \Log::error('PartnerTaskController@update error: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
-        }
-    }
+    //         return response()->json($task->load(['assignedTo', 'yacht', 'creator']));
+    //     } catch (\Exception $e) {
+    //         \Log::error('PartnerTaskController@update error: ' . $e->getMessage());
+    //         return response()->json(['error' => 'Internal server error'], 500);
+    //     }
+    // }
 
     /**
      * Delete a task (only if it belongs to a user under this partner).
