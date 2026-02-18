@@ -47,20 +47,16 @@ public function store(Request $request)
 {
     try {
         $user = $request->user();
-        
-        if (!$user) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
 
         $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
+            'title'       => 'required|string|max:255',
             'description' => 'nullable|string',
-            'priority' => 'required|in:Low,Medium,High,Urgent,Critical',
-            'status' => 'required|in:To Do,In Progress,Done',
+            'priority'    => 'required|in:Low,Medium,High,Urgent,Critical',
+            'status'      => 'required|in:To Do,In Progress,Done',
+            'due_date'    => 'required|date',
+            'type'        => 'required|in:personal,assigned',
             'assigned_to' => 'required_if:type,assigned|integer|exists:users,id',
-            'yacht_id' => 'nullable|integer|exists:yachts,id',
-            'due_date' => 'required|date',
-            'type' => 'required|in:assigned,personal',
+            'yacht_id'    => 'nullable|integer|exists:yachts,id',
         ]);
 
         if ($validator->fails()) {
@@ -69,27 +65,37 @@ public function store(Request $request)
 
         $data = $request->all();
         $data['created_by'] = $user->id;
-        
-        // Convert empty strings to null
-        $data['assigned_to'] = $data['assigned_to'] ? (int)$data['assigned_to'] : null;
-        $data['yacht_id'] = $data['yacht_id'] ? (int)$data['yacht_id'] : null;
-        
-        // For personal tasks, set user_id to current user
+
         if ($data['type'] === 'personal') {
             $data['user_id'] = $user->id;
             $data['assigned_to'] = $user->id;
+            $data['assignment_status'] = null;
+        } else {
+            $data['assignment_status'] = 'pending';
+            $data['user_id'] = null;
+        }
+
+        // Safely cast assigned_to if present
+        if (!empty($data['assigned_to'])) {
+            $data['assigned_to'] = (int)$data['assigned_to'];
+        } else {
+            $data['assigned_to'] = null;
+        }
+
+        // Safely handle yacht_id – only set if present
+        if (array_key_exists('yacht_id', $data) && !empty($data['yacht_id'])) {
+            $data['yacht_id'] = (int)$data['yacht_id'];
+        } else {
+            $data['yacht_id'] = null; // ensure the key exists with null value
         }
 
         $task = Task::create($data);
-
-        return response()->json($task->load(['assignedTo', 'yacht', 'creator']), 201);
-        
+        return response()->json($task->load(['assignedTo', 'creator', 'yacht']), 201);
     } catch (\Exception $e) {
-        \Log::error('Error creating task: ' . $e->getMessage());
+        \Log::error('Task store error: ' . $e->getMessage());
         return response()->json(['error' => 'Internal server error: ' . $e->getMessage()], 500);
     }
 }
-
     /**
      * Get a specific task
      */
@@ -359,5 +365,29 @@ public function store(Request $request)
           ->orWhere('user_id', $userId)
           ->orWhere('created_by', $userId);
     });
+}
+
+public function getPartnerEmployees(Request $request)
+{
+    $user = $request->user();
+
+    if ($user->role === 'Partner') {
+        $employees = User::where('partner_id', $user->id)
+            ->where('role', 'Employee')   // <-- filter only employees
+            ->where('status', 'Active')
+            ->select('id', 'name', 'email', 'role')
+            ->get();
+    } elseif ($user->role === 'Employee' && $user->partner_id) {
+        $employees = User::where('partner_id', $user->partner_id)
+            ->where('role', 'Employee')
+            ->where('id', '!=', $user->id)
+            ->where('status', 'Active')
+            ->select('id', 'name', 'email', 'role')
+            ->get();
+    } else {
+        return response()->json([]);
+    }
+
+    return response()->json($employees);
 }
 }
