@@ -62,14 +62,14 @@ public function store(Request $request)
         }
 
         $validator = Validator::make($request->all(), [
-            'title'       => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'priority'    => 'required|in:Low,Medium,High', // updated
-            'status'      => 'required|in:To Do,In Progress,Done',
+            'priority' => 'required|in:Low,Medium,High,Urgent,Critical',
+            'status' => 'required|in:To Do,In Progress,Done',
             'assigned_to' => 'required_if:type,assigned|integer|exists:users,id',
-            'yacht_id'    => 'nullable|integer|exists:yachts,id',
-            'due_date'    => 'required|date',
-            'type'        => 'required|in:assigned,personal',
+            'yacht_id' => 'nullable|integer|exists:yachts,id',
+            'due_date' => 'required|date',
+            'type' => 'required|in:assigned,personal',
         ]);
 
         if ($validator->fails()) {
@@ -81,15 +81,12 @@ public function store(Request $request)
         
         // Convert empty strings to null
         $data['assigned_to'] = $data['assigned_to'] ? (int)$data['assigned_to'] : null;
-        $data['yacht_id']    = $data['yacht_id'] ? (int)$data['yacht_id'] : null;
+        $data['yacht_id'] = $data['yacht_id'] ? (int)$data['yacht_id'] : null;
         
-        // Set assignment_status based on type
+        // For personal tasks, set user_id to current user
         if ($data['type'] === 'personal') {
             $data['user_id'] = $user->id;
             $data['assigned_to'] = $user->id;
-            $data['assignment_status'] = 'accepted'; // not pending
-        } else {
-            $data['assignment_status'] = 'pending';
         }
 
         $task = Task::create($data);
@@ -364,65 +361,4 @@ public function store(Request $request)
             default: return '#6b7280';
         }
     }
-
-    /**
- * Accept a task (only the assignee can accept)
- */
-public function acceptTask($id)
-{
-    try {
-        $user = request()->user();
-        $task = Task::find($id);
-        
-        if (!$task) {
-            return response()->json(['error' => 'Task not found'], 404);
-        }
-
-        // Only the assigned user can accept
-        if ($task->assigned_to !== $user->id) {
-            return response()->json(['error' => 'You are not assigned to this task'], 403);
-        }
-
-        if ($task->assignment_status !== 'pending') {
-            return response()->json(['error' => 'Task is not in pending state'], 400);
-        }
-
-        $task->update(['assignment_status' => 'accepted']);
-
-        return response()->json($task);
-    } catch (\Exception $e) {
-        \Log::error('Error accepting task: ' . $e->getMessage());
-        return response()->json(['error' => 'Internal server error'], 500);
-    }
-}
-
-/**
- * Reject a task (only the assignee can reject)
- */
-public function rejectTask($id)
-{
-    try {
-        $user = request()->user();
-        $task = Task::find($id);
-        
-        if (!$task) {
-            return response()->json(['error' => 'Task not found'], 404);
-        }
-
-        if ($task->assigned_to !== $user->id) {
-            return response()->json(['error' => 'You are not assigned to this task'], 403);
-        }
-
-        if ($task->assignment_status !== 'pending') {
-            return response()->json(['error' => 'Task is not in pending state'], 400);
-        }
-
-        $task->update(['assignment_status' => 'rejected']);
-
-        return response()->json($task);
-    } catch (\Exception $e) {
-        \Log::error('Error rejecting task: ' . $e->getMessage());
-        return response()->json(['error' => 'Internal server error'], 500);
-    }
-}
 }
