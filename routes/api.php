@@ -128,19 +128,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // TASK MANAGEMENT
 Route::get('/user', [UserController::class, 'currentUser']);
-    // Task routes
-    Route::get('/tasks', [TaskController::class, 'index']);
-    Route::get('/tasks/my', [TaskController::class, 'myTasks']);
-    Route::get('/tasks/calendar', [TaskController::class, 'calendarTasks']);
-    Route::post('/tasks', [TaskController::class, 'store']);
-    Route::get('/tasks/{id}', [TaskController::class, 'show']);
-    Route::put('/tasks/{id}', [TaskController::class, 'update']);
-    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus']);
-    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+    // // Task routes
+    // Route::get('/tasks', [TaskController::class, 'index']);
+    // Route::get('/tasks/my', [TaskController::class, 'myTasks']);
+    // Route::get('/tasks/calendar', [TaskController::class, 'calendarTasks']);
+    // Route::post('/tasks', [TaskController::class, 'store']);
+    // Route::get('/tasks/{id}', [TaskController::class, 'show']);
+    // Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    // Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus']);
+    // Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
     
     // Admin only - get tasks by user
-    Route::get('/users/{userId}/tasks', [TaskController::class, 'getUserTasks'])
-        ->middleware('permission:manage tasks');
+    // Route::get('/users/{userId}/tasks', [TaskController::class, 'getUserTasks'])
+    //     ->middleware('permission:manage tasks');
     
     // User and Yacht routes (for dropdowns)
     Route::get('/users/staff', [UserController::class, 'getStaff']);
@@ -320,32 +320,37 @@ Route::middleware(['auth:sanctum', 'permission:manage checklist questions'])->gr
 });
 Route::post('/register/seller', [PartnerUserController::class, 'registerSeller']);
 
-use App\Http\Controllers\PartnerTaskController;
+// use App\Http\Controllers\PartnerTaskController;
+// Route::middleware('auth:sanctum')->group(function () {
+//     // ... existing routes ...
 
+//     // Accept/Reject tasks (for employees)
+//     Route::patch('/tasks/{id}/accept', [TaskController::class, 'acceptTask']);
+//     Route::patch('/tasks/{id}/reject', [TaskController::class, 'rejectTask']);
+
+// });
+
+// Public (for admin task assignment – returns all employees)
+Route::get('/public/users/employees', [UserController::class, 'getEmployeesForTasks']);
+
+// Protected routes
 Route::middleware('auth:sanctum')->group(function () {
-    // Partner tasks management
-    Route::prefix('partner')->group(function () {
-        Route::get('/tasks', [PartnerTaskController::class, 'index']);
-        Route::post('/tasks', [PartnerTaskController::class, 'store']);
-        Route::get('/tasks/{id}', [PartnerTaskController::class, 'show']);
-        Route::put('/tasks/{id}', [PartnerTaskController::class, 'update']);
-        Route::delete('/tasks/{id}', [PartnerTaskController::class, 'destroy']);
-        Route::patch('/tasks/{id}/status', [PartnerTaskController::class, 'updateStatus']);
-        Route::get('/tasks/calendar', [PartnerTaskController::class, 'calendarTasks']);
-    });
-});
+    // Current user
+    Route::get('/user', [UserController::class, 'currentUser']);
 
-Route::middleware('auth:sanctum')->group(function () {
-    // ... existing routes ...
-
-    // Accept/Reject tasks (for employees)
+    // Tasks
+    Route::get('/tasks', [TaskController::class, 'index']);
+    Route::get('/tasks/my', [TaskController::class, 'myTasks']);
+    Route::post('/tasks', [TaskController::class, 'store']);
+    Route::get('/tasks/{id}', [TaskController::class, 'show']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus']);
     Route::patch('/tasks/{id}/accept', [TaskController::class, 'acceptTask']);
     Route::patch('/tasks/{id}/reject', [TaskController::class, 'rejectTask']);
 
-    // Partner-specific accept/reject (if needed)
-    Route::prefix('partner')->group(function () {
-        // ... existing partner routes ...
-        Route::patch('/tasks/{id}/accept', [PartnerTaskController::class, 'acceptTask']);
-        Route::patch('/tasks/{id}/reject', [PartnerTaskController::class, 'rejectTask']);
-    });
+    // Partner/Employee assignment helpers
+    Route::get('/partner/users', [TaskController::class, 'getPartnerEmployees']);
+
+    // ... other routes
 });
