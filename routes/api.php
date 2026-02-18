@@ -356,3 +356,4 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 // Find this line at the bottom of routes/api.php and change it to:
 Route::post('/verify-password', [ProfileController::class, 'verifyPassword'])->middleware('auth:sanctum');
+Route::post('/notifications', [NotificationController::class, 'store'])->middleware('auth:sanctum');

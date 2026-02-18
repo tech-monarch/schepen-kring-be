@@ -7,6 +7,8 @@ use App\Models\UserNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Services\PushNotificationService;
+
 
 class NotificationController extends Controller
 {
@@ -58,6 +60,59 @@ class NotificationController extends Controller
             ], 500);
         }
     }
+public function store(Request $request)
+{
+    try {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'message' => 'required|string',
+            'type' => 'nullable|in:info,warning,success,error,system',
+            'data' => 'nullable|array',
+        ]);
+
+        // Create the notification record
+        $notification = Notification::create([
+            'type' => $validated['type'] ?? 'info',
+            'title' => $validated['title'],
+            'message' => $validated['message'],
+            'data' => $validated['data'] ?? [],
+        ]);
+
+        // Link to the user
+        $userNotification = UserNotification::create([
+            'user_id' => $user->id,
+            'notification_id' => $notification->id,
+            'read' => false,
+            'read_at' => null,
+        ]);
+
+        // Send browser push via Beams
+        $pushService = new PushNotificationService();
+        $pushService->sendToUser(
+            $user->id,
+            $notification->title,
+            $notification->message
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notification created and push sent',
+            'notification' => $userNotification->load('notification'),
+        ], 201);
+
+    } catch (\Exception $e) {
+        Log::error('Error creating notification: ' . $e->getMessage());
+        return response()->json([
+            'error' => 'Failed to create notification',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
 
     public function markAsRead($id)
     {
