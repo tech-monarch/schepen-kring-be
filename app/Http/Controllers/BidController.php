@@ -127,51 +127,60 @@ class BidController extends Controller
 
         return response()->json(['message' => 'Bid declined.']);
     }
+public function index(Request $request)
+{
+    try {
+        // Get the authenticated user
+        $user = auth()->user();
 
-        
-// public function index(Request $request)
-// {
-//     try {
-//         $bids = Bid::with(['user:id,name', 'yacht'])
-//             ->orderBy('created_at', 'desc')
-//             ->paginate(20);
-
-//         // Transform yacht data – safely handle missing columns
-//         $bids->getCollection()->transform(function ($bid) {
-//             $yacht = $bid->yacht;
+        // If the user is a partner, restrict to bids on their yachts
+        if ($user->hasRole('partner')) { // adjust role check as needed
+            // Get IDs of yachts owned by this partner
+            $yachtIds = Yacht::where('user_id', $user->id)->pluck('id');
             
-//             // If for some reason the yacht is missing, provide empty object
-//             if (!$yacht) {
-//                 $bid->yacht = null;
-//                 return $bid;
-//             }
+            $bids = Bid::with(['user:id,name,email', 'yacht'])
+                ->whereIn('yacht_id', $yachtIds)
+                ->orderBy('created_at', 'desc')
+                ->paginate(20);
+        } else {
+            // Admin can see all bids
+            $bids = Bid::with(['user:id,name,email', 'yacht'])
+                ->orderBy('created_at', 'desc')
+                ->paginate(20);
+        }
 
-//             $bid->yacht = [
-//                 'id'          => $yacht->id,
-//                 'boat_name'   => $yacht->boat_name ?? $yacht->name ?? 'Onbekend',
-//                 'vessel_id'   => $yacht->vessel_id ?? $yacht->id,
-//                 'main_image'  => $yacht->main_image ?? $yacht->main_image_url ?? null,
-//                 'status'      => $yacht->status ?? 'Unknown',
-//                 'current_bid' => $yacht->current_bid,
-//                 'price'       => $yacht->price ?? 0,
-//             ];
-//             return $bid;
-//         });
+        // Transform yacht data to avoid missing column errors
+        $bids->getCollection()->transform(function ($bid) {
+            $yacht = $bid->yacht;
+            
+            if (!$yacht) {
+                $bid->yacht = null;
+                return $bid;
+            }
 
-//         return response()->json($bids);
+            $bid->yacht = [
+                'id'          => $yacht->id,
+                'boat_name'   => $yacht->boat_name ?? $yacht->name ?? 'Onbekend',
+                'vessel_id'   => $yacht->vessel_id ?? $yacht->id,
+                'main_image'  => $yacht->main_image ?? $yacht->main_image_url ?? null,
+                'status'      => $yacht->status ?? 'Unknown',
+                'current_bid' => $yacht->current_bid,
+                'price'       => $yacht->price ?? 0,
+            ];
+            return $bid;
+        });
 
-//     } catch (\Exception $e) {
-//         // Return the actual error so you can fix it immediately
-//         return response()->json([
-//             'error'   => $e->getMessage(),
-//             'file'    => $e->getFile(),
-//             'line'    => $e->getLine(),
-//             'trace'   => $e->getTraceAsString()
-//         ], 500);
-//     }
-// }
+        return response()->json($bids);
 
-
-
+    } catch (\Exception $e) {
+        // Return detailed error during development (remove in production)
+        return response()->json([
+            'error'   => $e->getMessage(),
+            'file'    => $e->getFile(),
+            'line'    => $e->getLine(),
+            'trace'   => $e->getTraceAsString()
+        ], 500);
+    }
+}
 
 }
