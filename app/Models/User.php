@@ -41,7 +41,9 @@ protected $fillable = [
     // new fields
     'relationNumber', 'firstName', 'lastName', 'prefix', 'initials',
     'title', 'salutation', 'attentionOf', 'identification', 'dateOfBirth',
-    'website', 'mobile', 'street', 'houseNumber', 'note', 'claimHistoryCount',
+    'website', 'mobile', 'street', 'houseNumber', 'note', 'claimHistoryCount','lockscreen_code',
+    'lockscreen_timeout',
+    'otp_enabled',
 ];
 
     public function tasks() {
