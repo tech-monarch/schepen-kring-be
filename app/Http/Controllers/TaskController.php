@@ -13,39 +13,30 @@ class TaskController extends Controller
     /**
      * Get tasks based on user role
      */
-    public function index(Request $request)
-    {
-        try {
-            $user = $request->user();
-            
-            if (!$user) {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
+public function index(Request $request)
+{
+    $user = $request->user();
 
-            // Admin sees all tasks
-            if ($user->role === 'Admin') {
-                $tasks = Task::with(['assignedTo:id,name,email', 'yacht:id,name', 'creator:id,name'])
-                    ->orderBy('created_at', 'desc')
-                    ->get();
-            } 
-            // Employee sees only their assigned tasks and personal tasks
-            else {
-                $tasks = Task::with(['assignedTo:id,name,email', 'yacht:id,name', 'creator:id,name'])
-                    ->where(function($query) use ($user) {
-                        $query->where('assigned_to', $user->id)
-                              ->orWhere('user_id', $user->id);
-                    })
-                    ->orderBy('created_at', 'desc')
-                    ->get();
-            }
-
-            return response()->json($tasks);
-            
-        } catch (\Exception $e) {
-            \Log::error('Error fetching tasks: ' . $e->getMessage());
-            return response()->json(['error' => 'Internal server error'], 500);
-        }
+    if ($user->role === 'Admin') {
+        $tasks = Task::with(['assignedTo', 'creator', 'yacht'])->latest()->get();
+    } elseif ($user->role === 'Partner') {
+        $employeeIds = User::where('partner_id', $user->id)->pluck('id');
+        $tasks = Task::with(['assignedTo', 'creator', 'yacht'])
+            ->where(function ($q) use ($user, $employeeIds) {
+                $q->where('created_by', $user->id)
+                  ->orWhereIn('assigned_to', $employeeIds);
+            })
+            ->latest()
+            ->get();
+    } else {
+        $tasks = Task::with(['assignedTo', 'creator', 'yacht'])
+            ->forUser($user->id)
+            ->latest()
+            ->get();
     }
+
+    return response()->json($tasks);
+}
 
     /**
      * Create a new task
@@ -361,4 +352,12 @@ public function store(Request $request)
             default: return '#6b7280';
         }
     }
+    public function scopeForUser($query, $userId)
+{
+    return $query->where(function ($q) use ($userId) {
+        $q->where('assigned_to', $userId)
+          ->orWhere('user_id', $userId)
+          ->orWhere('created_by', $userId);
+    });
+}
 }

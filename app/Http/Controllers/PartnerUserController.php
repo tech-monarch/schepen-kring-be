@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
+use Illuminate\Support\Facades\Validator; 
 
 class PartnerUserController extends Controller
 {
@@ -18,6 +18,11 @@ class PartnerUserController extends Controller
     {
         $partner = auth()->user();
 
+        // Ensure the authenticated user is a partner
+        if ($partner->role !== 'Partner') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $query = User::where('partner_id', $partner->id);
 
         if ($request->has('role')) {
@@ -26,8 +31,8 @@ class PartnerUserController extends Controller
 
         $users = $query->orderBy('name')->get();
 
-        // Load page permissions for frontend (if needed)
-        $users->load('pagePermissions.page');
+        // Remove this if relationship doesn't exist:
+        // $users->load('pagePermissions.page');
 
         return response()->json($users);
     }
