@@ -77,7 +77,7 @@ public function store(Request $request)
     // Handle file upload separately
     if ($request->hasFile('featured_image')) {
         $validator = Validator::make($request->all(), [
-            'featured_image' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'featured_image' => 'image|mimes:jpeg,png,jpg,gif|max:20480',
         ]);
         
         if ($validator->fails()) {

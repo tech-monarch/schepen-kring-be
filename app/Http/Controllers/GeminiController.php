@@ -30,7 +30,7 @@ class GeminiController extends Controller
         $chosenProfile = $voiceProfiles[$voiceId] ?? $voiceProfiles['voice_4'];
 
         // 1. API CONFIGURATION
-        $apiKey = "AIzaSyBcM6a6-Dyh-HQjybNcqB0NmS1MResz-KM";
+        $apiKey = "AIzaSyAQL886bhoR8gpfX6X7R324mLZX4U6i1pU";
         $model = "gemini-2.5-flash-lite"; 
 
         // 2. FETCH KNOWLEDGE BASE (With Crash Protection)
