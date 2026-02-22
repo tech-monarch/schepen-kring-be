@@ -183,4 +183,15 @@ public function index(Request $request)
     }
 }
 
+public function destroy($id)
+{
+    $bid = Bid::findOrFail($id);
+    $bid->delete();
+
+    // Optional: log the deletion
+    // SystemLogService::logBidDeletion($bid, request());
+
+    return response()->json(['message' => 'Bid deleted successfully.']);
+}
+
 }

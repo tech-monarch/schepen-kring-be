@@ -122,6 +122,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:accept bids')->group(function () {
         Route::post('bids/{id}/accept', [BidController::class, 'acceptBid']);
         Route::post('bids/{id}/decline', [BidController::class, 'declineBid']);
+        Route::delete('bids/{id}', [BidController::class, 'destroy']); 
     });
     
     Route::get('bids', [BidController::class, 'index']); 
