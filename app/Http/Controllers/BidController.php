@@ -189,7 +189,7 @@ public function destroy($id)
     $bid->delete();
 
     // Optional: log the deletion
-    // SystemLogService::logBidDeletion($bid, request());
+    SystemLogService::logBidDeletion($bid, request());
 
     return response()->json(['message' => 'Bid deleted successfully.']);
 }

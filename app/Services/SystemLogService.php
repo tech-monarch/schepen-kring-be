@@ -316,4 +316,24 @@ class SystemLogService
             $request
         );
     }
+
+    /**
+ * Log bid deletion
+ */
+public static function logBidDeletion(
+    Model $bid,
+    ?Request $request = null
+): SystemLog {
+    $description = "Bid #{$bid->id} for €{$bid->amount} deleted by " . (Auth::user() ? Auth::user()->name : 'System');
+    
+    return self::log(
+        'bid_deleted',
+        'Bid',
+        $bid->id,
+        $bid->toArray(),   // old data
+        null,              // no new data
+        $description,
+        $request
+    );
+}
 }
