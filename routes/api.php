@@ -129,19 +129,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // TASK MANAGEMENT
 Route::get('/user', [UserController::class, 'currentUser']);
-    // // Task routes
-    // Route::get('/tasks', [TaskController::class, 'index']);
-    // Route::get('/tasks/my', [TaskController::class, 'myTasks']);
-    // Route::get('/tasks/calendar', [TaskController::class, 'calendarTasks']);
-    // Route::post('/tasks', [TaskController::class, 'store']);
-    // Route::get('/tasks/{id}', [TaskController::class, 'show']);
-    // Route::put('/tasks/{id}', [TaskController::class, 'update']);
-    // Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus']);
-    // Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
-    
-    // Admin only - get tasks by user
-    // Route::get('/users/{userId}/tasks', [TaskController::class, 'getUserTasks'])
-    //     ->middleware('permission:manage tasks');
     
     // User and Yacht routes (for dropdowns)
     Route::get('/users/staff', [UserController::class, 'getStaff']);
@@ -321,16 +308,6 @@ Route::middleware(['auth:sanctum', 'permission:manage checklist questions'])->gr
 });
 Route::post('/register/seller', [PartnerUserController::class, 'registerSeller']);
 
-// use App\Http\Controllers\PartnerTaskController;
-// Route::middleware('auth:sanctum')->group(function () {
-//     // ... existing routes ...
-
-//     // Accept/Reject tasks (for employees)
-//     Route::patch('/tasks/{id}/accept', [TaskController::class, 'acceptTask']);
-//     Route::patch('/tasks/{id}/reject', [TaskController::class, 'rejectTask']);
-
-// });
-
 // Public (for admin task assignment – returns all employees)
 Route::get('/public/users/employees', [UserController::class, 'getEmployeesForTasks']);
 
@@ -339,16 +316,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // Current user
     Route::get('/user', [UserController::class, 'currentUser']);
 
-    // Tasks
-    Route::get('/tasks', [TaskController::class, 'index']);
-    Route::get('/tasks/my', [TaskController::class, 'myTasks']);
-    Route::post('/tasks', [TaskController::class, 'store']);
-    Route::get('/tasks/{id}', [TaskController::class, 'show']);
-    Route::put('/tasks/{id}', [TaskController::class, 'update']);
-    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
-    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus']);
-    Route::patch('/tasks/{id}/accept', [TaskController::class, 'acceptTask']);
-    Route::patch('/tasks/{id}/reject', [TaskController::class, 'rejectTask']);
+    // // Tasks
+    // Route::get('/tasks', [TaskController::class, 'index']);
+    // Route::get('/tasks/my', [TaskController::class, 'myTasks']);
+    // Route::post('/tasks', [TaskController::class, 'store']);
+    // Route::get('/tasks/{id}', [TaskController::class, 'show']);
+    // Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    // Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+    // Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus']);
+    // Route::patch('/tasks/{id}/accept', [TaskController::class, 'acceptTask']);
+    // Route::patch('/tasks/{id}/reject', [TaskController::class, 'rejectTask']);
 
     // Partner/Employee assignment helpers
     Route::get('/partner/users', [TaskController::class, 'getPartnerEmployees']);
@@ -358,3 +335,21 @@ Route::middleware('auth:sanctum')->group(function () {
 // Find this line at the bottom of routes/api.php and change it to:
 Route::post('/verify-password', [ProfileController::class, 'verifyPassword'])->middleware('auth:sanctum');
 Route::post('/notifications', [NotificationController::class, 'store'])->middleware('auth:sanctum');
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Tasks
+    Route::get('tasks', [TaskController::class, 'index']);
+    Route::get('tasks/{task}', [TaskController::class, 'show']);
+    Route::post('tasks', [TaskController::class, 'store']);
+    Route::put('tasks/{task}', [TaskController::class, 'update']);
+    Route::delete('tasks/{task}', [TaskController::class, 'destroy']);
+    Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus']);
+    Route::patch('tasks/{task}/accept', [TaskController::class, 'accept']);
+    Route::patch('tasks/{task}/reject', [TaskController::class, 'reject']);
+
+    // Users for assignment (Admin)
+    Route::get('users/assignable', [UserController::class, 'assignable']);
+
+    // Partner's users (already exists from PartnerUserController)
+    // If you don't have it, add: Route::get('partner/users', [PartnerUserController::class, 'index']);
+});

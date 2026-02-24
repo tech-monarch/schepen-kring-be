@@ -11,7 +11,6 @@ class Task extends Model
     use HasFactory;
 
     protected $fillable = [
-        'title',
         'description',
         'priority',               // Low, Medium, High, Urgent, Critical
         'status',                  // To Do, In Progress, Done
